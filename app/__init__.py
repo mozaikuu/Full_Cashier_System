@@ -1,0 +1,1 @@
+"""Sandy Cashier application package."""
