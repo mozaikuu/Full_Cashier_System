@@ -34,7 +34,7 @@ class MainWindow(QMainWindow):
         self.nav.addItems(["الرئيسية", "البيع", "الأصناف", "المخزون", "الفواتير", "الإعدادات", "استعراض الأصناف", "دليل الاستخدام"])
         self.nav.currentRowChanged.connect(self.change_page)
         for page in (self.dashboard(), self.checkout(), self.products(), self.inventory(), self.sales(), self.settings_page(), self.catalog(), self.guide()):
-            self.stack.addWidget(page)
+            self.stack.addWidget(self.scrollable_page(page))
         self.nav.setCurrentRow(0)
         shell = QWidget()
         layout = QHBoxLayout(shell)
@@ -43,6 +43,15 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.stack, 5)
         layout.addWidget(self.nav, 1)
         self.setCentralWidget(shell)
+
+    @staticmethod
+    def scrollable_page(page):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setWidget(page)
+        return scroll
 
     def change_page(self, index):
         self.stack.setCurrentIndex(index)
@@ -889,6 +898,9 @@ class MainWindow(QMainWindow):
             self.cashier_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
             self.cashier_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
             layout.addWidget(self.cashier_table)
+            self.cashier_empty_label = QLabel("لا توجد حسابات كاشير بعد")
+            self.cashier_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(self.cashier_empty_label)
             toggle_cashier = QPushButton("تفعيل / إيقاف المحدد")
             toggle_cashier.clicked.connect(self.toggle_selected_cashier)
             layout.addWidget(toggle_cashier)
@@ -914,7 +926,7 @@ class MainWindow(QMainWindow):
             return
         self.cashier_table.setRowCount(0)
         cashiers = list_cashiers()
-        self.cashier_table.setPlaceholderText("لا توجد حسابات كاشير بعد")
+        self.cashier_empty_label.setVisible(not cashiers)
         for cashier in cashiers:
             row = self.cashier_table.rowCount()
             self.cashier_table.insertRow(row)

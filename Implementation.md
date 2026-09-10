@@ -300,7 +300,7 @@ Sandy_Cashier/
 | Receipt header    | **fyonka / baltim / 01201538851** (Settings, temporary) |
 | Receipt printer   | **XP-Q80AS**, ESC/POS, 80mm                             |
 | Label printer     | **XP-233B**, TSPL, 2-inch                               |
-| Access            | Multiple cashier accounts with administrator controls     |
+| Access            | Multiple cashier accounts with administrator controls   |
 | Returns           | **None** — sales are final                              |
 | Product seed data | **None** — cashier enters products in the app           |
 
