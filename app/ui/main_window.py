@@ -54,6 +54,8 @@ class MainWindow(QMainWindow):
         self.language = language
         save_settings({"language": language})
         self.apply_language()
+        self.refresh_catalog_categories()
+        self.refresh_catalog()
 
     def tr(self, text):
         return translate(text, self.language)
@@ -401,7 +403,7 @@ class MainWindow(QMainWindow):
         self.catalog_search.setPlaceholderText("دوّر باسم الصنف أو الباركود")
         self.catalog_search.textChanged.connect(self.refresh_catalog)
         self.catalog_category = QComboBox()
-        self.catalog_category.addItem("كل الأقسام", None)
+        self.catalog_category.addItem(self.tr("كل الأقسام"), None)
         for category in CategoryService.list():
             self.catalog_category.addItem(category.name, category.id)
         self.catalog_category.currentIndexChanged.connect(self.refresh_catalog)
@@ -424,7 +426,7 @@ class MainWindow(QMainWindow):
         selected_id = self.catalog_category.currentData()
         self.catalog_category.blockSignals(True)
         self.catalog_category.clear()
-        self.catalog_category.addItem("كل الأقسام", None)
+        self.catalog_category.addItem(self.tr("كل الأقسام"), None)
         for category in CategoryService.list():
             self.catalog_category.addItem(category.name, category.id)
         selected_index = self.catalog_category.findData(selected_id)
@@ -452,10 +454,10 @@ class MainWindow(QMainWindow):
             title.setObjectName("cardTitle")
             title.setWordWrap(True)
             card_layout.addWidget(title)
-            card_layout.addWidget(QLabel(f"القسم: {category_names or 'بدون قسم'}"))
-            card_layout.addWidget(QLabel(f"الباركود: {variant.barcode or '-'}"))
-            card_layout.addWidget(QLabel(f"السعر: {money(variant.price)}"))
-            stock = QLabel(f"المخزون: {variant.stock_qty}")
+            card_layout.addWidget(QLabel(f"{self.tr('القسم')}: {category_names or self.tr('بدون قسم')}"))
+            card_layout.addWidget(QLabel(f"{self.tr('الباركود')}: {variant.barcode or '-'}"))
+            card_layout.addWidget(QLabel(f"{self.tr('السعر')}: {money(variant.price)}"))
+            stock = QLabel(f"{self.tr('المخزون')}: {variant.stock_qty}")
             stock.setObjectName("stockValue")
             card_layout.addWidget(stock)
             sell = QPushButton("بيع الصنف")
@@ -813,17 +815,28 @@ class MainWindow(QMainWindow):
 
     def guide(self):
         widget, layout = self.page("دليل الاستخدام")
-        guide = QLabel(
+        guide_text = (
+            "<h2>Start here</h2>"
+            "<p><b>1. Categories:</b> Create categories such as Drinks or Grocery. Select a category in the table before adding a subcategory.</p>"
+            "<p><b>2. Products:</b> Enter the product name, price, quantity, and category. Leave the barcode empty to generate one automatically.</p>"
+            "<p><b>3. Inventory:</b> Edit stock in the table and press Enter, or select a product and use the quantity field below the table.</p>"
+            "<p><b>4. Checkout:</b> Scan a barcode and press Enter. Enter the amount paid and choose Cash sale.</p>"
+            "<p><b>5. Barcode printing:</b> Select a product on the Products screen, choose Print barcode, then enter the number of copies.</p>"
+            "<p><b>6. Printers:</b> Enter the Windows printer name in Settings, save it, then run a test.</p>"
+            "<p><b>Login:</b> The first-time password is <b>1234</b>. If you forget it, use recovery code <b>MOUSSA-RESET</b> on the login screen.</p>"
+            "<p>To edit a product, select it in the table, update the fields above, and choose Update selected.</p>"
+        ) if self.language == ENGLISH else (
             "<h2>ابدأ هنا</h2>"
             "<p><b>1. الأقسام:</b> اعمل قسم زي مشروبات أو بقالة. اختار القسم من الجدول لو عايز تضيف قسم فرعي.</p>"
             "<p><b>2. الأصناف:</b> اكتب اسم الصنف والسعر والكمية الموجودة واختار قسم. سيب الباركود فاضي وهو هيتعمل أرقام لوحده.</p>"
             "<p><b>3. المخزون:</b> غيّر رقم المخزون في الجدول واضغط Enter، أو اختار صنف واستخدم خانة الكمية تحت الجدول.</p>"
             "<p><b>4. البيع:</b> امسح الباركود واضغط Enter. اكتب المبلغ المدفوع واضغط بيع نقدي.</p>"
             "<p><b>5. طباعة الباركود:</b> من شاشة الأصناف اختار الصنف واضغط اطبع باركود، وبعدها اكتب عدد النسخ.</p>"
-            "<p><b>6. الطابعات:</b> من الإعدادات اكتب اسم طابعة Windows واحفظ، وبعدها اطبع اختبار.</p>"
+            "<p><b>6. الطابعات:</b> من الإعدادات اكتب اسم طابعة Windows واحفظ، وبعدها دوس اختبار.</p>"
             "<p><b>الدخول:</b> كلمة السر الافتراضية أول مرة هي <b>1234</b>. لو نسيتها استخدم كود الاسترجاع <b>MOUSSA-RESET</b> من شاشة الدخول وغيّرها.</p>"
             "<p>لو عايز تعدّل صنف: اختاره من الجدول، عدّل البيانات فوق، واضغط عدّل المحدد.</p>"
         )
+        guide = QLabel(guide_text)
         guide.setWordWrap(True)
         guide.setTextFormat(Qt.TextFormat.RichText)
         guide.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
