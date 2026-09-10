@@ -71,7 +71,7 @@ def test_product_edit_updates_quantity():
     assert updated.stock_qty == 9
 
 
-def test_receipt_delete_restores_stock():
+def test_receipt_delete_does_not_restore_stock():
     CategoryService.save("مخبوزات")
     category_id = CategoryService.list()[0].id
     variant = ProductService.create("عيش", "", "", Decimal("4.00"), Decimal("0"), 5, 1, category_id)
@@ -81,7 +81,7 @@ def test_receipt_delete_restores_stock():
     assert edited.total == Decimal("12.00")
     assert ProductService.search(variant.barcode)[0].stock_qty == 2
     SaleService.delete_sale(sale.id)
-    assert ProductService.search(variant.barcode)[0].stock_qty == 5
+    assert ProductService.search(variant.barcode)[0].stock_qty == 2
 
 
 def test_admin_can_change_password_with_old_password():

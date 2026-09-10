@@ -1,8 +1,10 @@
 from pathlib import Path
+import sys
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
+DATA_DIR = APP_DIR / "data"
 DATABASE_URL = f"sqlite:///{DATA_DIR / 'sandy_cashier.db'}"
 
 

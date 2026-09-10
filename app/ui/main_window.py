@@ -506,7 +506,7 @@ class MainWindow(QMainWindow):
 
     def sales(self):
         widget, layout = self.page("الفواتير")
-        layout.addWidget(QLabel("هنا هتلاقي كل الفواتير. اختار فاتورة عشان تعرضها أو تعيد طباعتها أو تحذفها."))
+        layout.addWidget(QLabel("هنا هتلاقي كل الفواتير. اختار فاتورة عشان تعرضها أو تعدّل كمياتها أو تعيد طباعتها. الحذف بيمسح السجل بس ومش بيرجع فلوس أو مخزون."))
         self.sales_table = QTableWidget(0, 6)
         self.sales_table.setHorizontalHeaderLabels(["#", "الفاتورة", "التاريخ", "المشتري", "رقم الموبايل", "الإجمالي"])
         self.configure_table(self.sales_table)
@@ -588,13 +588,10 @@ class MainWindow(QMainWindow):
         sale = self.selected_sale()
         if not sale:
             return
-        answer = QMessageBox.warning(self, "حذف الفاتورة", "حذف الفاتورة هيرجع كمياتها للمخزون. تكمل؟", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        answer = QMessageBox.warning(self, "حذف الفاتورة", "الفاتورة هتتمسح من السجل فقط، ومش هيحصل استرجاع فلوس أو رجوع للمخزون. تكمل؟", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if answer == QMessageBox.StandardButton.Yes:
             SaleService.delete_sale(sale.id)
             self.refresh_sales()
-            self.refresh_inventory()
-            self.refresh_products()
-            self.refresh_dashboard()
 
     def settings_page(self):
         widget, layout = self.page("الإعدادات")

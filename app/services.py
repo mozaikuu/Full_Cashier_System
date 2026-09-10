@@ -163,11 +163,6 @@ class SaleService:
             sale = session.get(Sale, sale_id)
             if not sale:
                 raise ValueError("الفاتورة مش موجودة")
-            for line in sale.lines:
-                variant = session.get(Variant, line.variant_id)
-                if variant:
-                    variant.stock_qty += line.qty
-                    session.add(StockMovement(variant_id=variant.id, qty_change=line.qty, reason="receipt_deleted", reference_id=str(sale_id)))
             session.delete(sale)
 
     @staticmethod
