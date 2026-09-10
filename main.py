@@ -13,7 +13,7 @@ def main() -> int:
     login = LoginDialog()
     if login.exec() != LoginDialog.DialogCode.Accepted:
         return 0
-    window = MainWindow()
+    window = MainWindow(login.user)
     window.show()
     return application.exec()
 

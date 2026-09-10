@@ -15,15 +15,6 @@ class Category(Base):
     name: Mapped[str] = mapped_column(String(120), unique=True)
     sort_order: Mapped[int] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    subcategories: Mapped[list["Subcategory"]] = relationship(cascade="all, delete-orphan")
-
-
-class Subcategory(Base):
-    __tablename__ = "subcategories"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id", ondelete="CASCADE"))
-    name: Mapped[str] = mapped_column(String(120))
-    sort_order: Mapped[int] = mapped_column(default=0)
 
 
 class Product(Base):
@@ -42,9 +33,8 @@ class ProductCategoryLink(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
-    subcategory_id: Mapped[int | None] = mapped_column(ForeignKey("subcategories.id"), nullable=True)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
-    __table_args__ = (UniqueConstraint("product_id", "category_id", "subcategory_id"),)
+    __table_args__ = (UniqueConstraint("product_id", "category_id"),)
 
 
 class Variant(Base):
@@ -81,6 +71,7 @@ class Sale(Base):
     store_id: Mapped[int] = mapped_column(default=1)
     buyer_name: Mapped[str] = mapped_column(String(160), default="")
     buyer_phone: Mapped[str] = mapped_column(String(40), default="")
+    cashier_username: Mapped[str] = mapped_column(String(80), default="admin")
     lines: Mapped[list["SaleLine"]] = relationship(cascade="all, delete-orphan")
 
 
@@ -99,3 +90,12 @@ class Setting(Base):
     __tablename__ = "settings"
     key: Mapped[str] = mapped_column(String(80), primary_key=True)
     value: Mapped[str] = mapped_column(Text, default="")
+
+
+class Cashier(Base):
+    __tablename__ = "cashiers"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(300))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=local_now)

@@ -4,34 +4,36 @@ import re
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QFont, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+    QAbstractItemView, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPushButton, QScrollArea, QSpinBox,
     QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QHeaderView, QGridLayout, QFrame,
 )
 from sqlalchemy import select
 
 from app.database import SessionLocal
-from app.auth import change_password, initialize_auth
+from app.auth import change_cashier_password, change_password, create_cashier, initialize_auth, list_cashiers, set_cashier_active
 from app.database import factory_reset
 from app.hardware import LabelPrinter, ReceiptPrinter
+from app.importer import create_template, import_products
 from app.models import Category, Sale, Setting, Variant
 from app.services import CategoryService, InventoryService, ProductService, ReportService, SaleService, money, save_settings, settings
 from app.ui.styles import STYLE
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, current_user=None):
         super().__init__()
         self.setWindowTitle("صندوق سَندي")
         self.resize(1200, 760)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.setStyleSheet(STYLE)
+        self.current_user = current_user or {"username": "admin", "role": "admin"}
         self.stack = QStackedWidget()
         self.selected_product_id = None
         self.nav = QListWidget()
-        self.nav.addItems(["الرئيسية", "البيع", "الأصناف", "المخزون", "الأقسام", "الفواتير", "الإعدادات", "استعراض الأصناف", "دليل الاستخدام"])
+        self.nav.addItems(["الرئيسية", "البيع", "الأصناف", "المخزون", "الفواتير", "الإعدادات", "استعراض الأصناف", "دليل الاستخدام"])
         self.nav.currentRowChanged.connect(self.change_page)
-        for page in (self.dashboard(), self.checkout(), self.products(), self.inventory(), self.categories(), self.sales(), self.settings_page(), self.catalog(), self.guide()):
+        for page in (self.dashboard(), self.checkout(), self.products(), self.inventory(), self.sales(), self.settings_page(), self.catalog(), self.guide()):
             self.stack.addWidget(page)
         self.nav.setCurrentRow(0)
         shell = QWidget()
@@ -53,10 +55,8 @@ class MainWindow(QMainWindow):
         elif index == 3:
             self.refresh_inventory()
         elif index == 4:
-            self.refresh_categories()
-        elif index == 5:
             self.refresh_sales()
-        elif index == 7:
+        elif index == 6:
             self.refresh_catalog_categories()
             self.refresh_catalog()
 
@@ -294,6 +294,7 @@ class MainWindow(QMainWindow):
                 Decimal(str(self.cash.value())),
                 self.buyer_name.text(),
                 self.buyer_phone.text(),
+                self.current_user["username"],
             )
             ReceiptPrinter().print_sale(sale)
             self.cart_items.clear()
@@ -329,6 +330,31 @@ class MainWindow(QMainWindow):
         scan_button.clicked.connect(self.use_scanned_product_barcode)
         barcode_scan_row.addWidget(scan_button)
         layout.addLayout(barcode_scan_row)
+        import_row = QHBoxLayout()
+        import_button = QPushButton("استيراد Excel")
+        import_button.clicked.connect(self.import_product_file)
+        template_button = QPushButton("تحميل نموذج Excel")
+        template_button.clicked.connect(self.export_product_template)
+        import_row.addWidget(import_button)
+        import_row.addWidget(template_button)
+        import_row.addStretch()
+        layout.addLayout(import_row)
+        layout.addWidget(QLabel("إدارة الأقسام"))
+        category_row = QHBoxLayout()
+        self.category_name = QLineEdit()
+        self.category_name.setPlaceholderText("اسم القسم الجديد")
+        add_category = QPushButton("إضافة قسم")
+        add_category.clicked.connect(self.add_category)
+        category_row.addWidget(self.category_name)
+        category_row.addWidget(add_category)
+        self.category_parent = QComboBox()
+        self.category_parent.setPlaceholderText("اختار القسم")
+        category_row.addWidget(self.category_parent)
+        delete_category = QPushButton("حذف القسم")
+        delete_category.setObjectName("danger")
+        delete_category.clicked.connect(self.delete_category)
+        category_row.addWidget(delete_category)
+        layout.addLayout(category_row)
         form = QFormLayout()
         self.p_name, self.p_sku, self.p_barcode = QLineEdit(), QLineEdit(), QLineEdit()
         self.p_price = QDoubleSpinBox(); self.p_price.setMaximum(999999); self.p_price.setSuffix(" جنيه")
@@ -450,8 +476,46 @@ class MainWindow(QMainWindow):
         self.product_barcode_scan.clear()
         self.p_name.setFocus()
 
+    def import_product_file(self):
+        path, _ = QFileDialog.getOpenFileName(self, "استيراد الأصناف", "", "Excel أو CSV (*.xlsx *.xlsm *.csv)")
+        if not path:
+            return
+        try:
+            imported, errors = import_products(path)
+            self.refresh_product_categories()
+            self.refresh_products()
+            self.refresh_inventory()
+            self.refresh_dashboard()
+            message = f"تم استيراد {imported} صنف."
+            if errors:
+                message += "\n\n" + "\n".join(errors[:8])
+                if len(errors) > 8:
+                    message += f"\n... و {len(errors) - 8} أخطاء أخرى"
+            QMessageBox.information(self, "نتيجة الاستيراد", message)
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, "تعذر الاستيراد", str(error))
+
+    def export_product_template(self):
+        path, _ = QFileDialog.getSaveFileName(self, "حفظ نموذج الأصناف", "product_import_template.xlsx", "Excel (*.xlsx)")
+        if not path:
+            return
+        try:
+            create_template(path)
+            QMessageBox.information(self, "تم إنشاء النموذج", "افتح الملف وأضف الأصناف في الصفوف الجديدة ثم استورده من نفس الشاشة.")
+        except OSError as error:
+            QMessageBox.warning(self, "تعذر إنشاء النموذج", str(error))
+
     def refresh_product_categories(self):
         self.category_choices = CategoryService.list()
+        if hasattr(self, "category_parent"):
+            selected_id = self.category_parent.currentData()
+            self.category_parent.blockSignals(True)
+            self.category_parent.clear()
+            for category in self.category_choices:
+                self.category_parent.addItem(category.name, category.id)
+            selected_index = self.category_parent.findData(selected_id)
+            self.category_parent.setCurrentIndex(selected_index if selected_index >= 0 else 0)
+            self.category_parent.blockSignals(False)
         self.update_category_button()
 
     def update_category_button(self):
@@ -646,42 +710,26 @@ class MainWindow(QMainWindow):
             self.refresh_dashboard()
         except ValueError as error: QMessageBox.warning(self, "تعذر تحديث المخزون", str(error))
 
-    def categories(self):
-        widget, layout = self.page("التصنيفات")
-        layout.addWidget(QLabel("الأقسام بتخلّيك ترتّب الأصناف وتلاقيها بسرعة. اختار قسم من الجدول قبل ما تضيف قسم فرعي."))
-        self.category_name = QLineEdit(); self.category_name.setPlaceholderText("اسم التصنيف"); self.subcategory_name = QLineEdit(); self.subcategory_name.setPlaceholderText("اسم التصنيف الفرعي")
-        add = QPushButton("إضافة تصنيف"); add.clicked.connect(self.add_category); add_sub = QPushButton("إضافة تصنيف فرعي"); add_sub.clicked.connect(self.add_subcategory); delete = QPushButton("حذف التصنيف المحدد"); delete.clicked.connect(self.delete_category)
-        for item in (self.category_name, add, self.subcategory_name, add_sub, delete): layout.addWidget(item)
-        self.category_table = QTableWidget(0, 3); self.category_table.setHorizontalHeaderLabels(["#", "القسم", "عدد الأقسام الفرعية"]); self.configure_table(self.category_table); layout.addWidget(self.category_table); self.refresh_categories(); return widget
-
     def add_category(self):
-        if self.category_name.text().strip(): CategoryService.save(self.category_name.text()); self.category_name.clear(); self.refresh_categories(); self.refresh_product_categories()
-
-    def add_subcategory(self):
-        row = self.category_table.currentRow()
-        if row >= 0 and self.subcategory_name.text().strip(): CategoryService.save_subcategory(int(self.category_table.item(row, 0).data(Qt.ItemDataRole.UserRole)), self.subcategory_name.text()); self.subcategory_name.clear(); self.refresh_categories()
+        if self.category_name.text().strip():
+            CategoryService.save(self.category_name.text())
+            self.category_name.clear()
+            self.refresh_product_categories()
 
     def delete_category(self):
-        row = self.category_table.currentRow()
-        if row < 0: return
-        try: CategoryService.delete(int(self.category_table.item(row, 0).data(Qt.ItemDataRole.UserRole))); self.refresh_categories(); self.refresh_product_categories()
+        category_id = self.category_parent.currentData()
+        if not category_id:
+            return
+        try:
+            CategoryService.delete(int(category_id))
+            self.refresh_product_categories()
         except ValueError as error: QMessageBox.warning(self, "تعذر الحذف", str(error))
-
-    def refresh_categories(self):
-        if not hasattr(self, "category_table"): return
-        self.category_table.setRowCount(0)
-        self.category_table.setRowCount(0)
-        for category in CategoryService.list():
-            row = self.category_table.rowCount(); self.category_table.insertRow(row)
-            values = (str(row + 1), category.name, str(len(CategoryService.subcategories(category.id))))
-            for column, value in enumerate(values): self.category_table.setItem(row, column, QTableWidgetItem(value))
-            self.category_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, category.id)
 
     def sales(self):
         widget, layout = self.page("الفواتير")
         layout.addWidget(QLabel("هنا هتلاقي كل الفواتير. اختار فاتورة عشان تعرضها أو تعدّل كمياتها أو تعيد طباعتها. الحذف بيمسح السجل بس ومش بيرجع فلوس أو مخزون."))
-        self.sales_table = QTableWidget(0, 6)
-        self.sales_table.setHorizontalHeaderLabels(["#", "الفاتورة", "التاريخ", "المشتري", "رقم الموبايل", "الإجمالي"])
+        self.sales_table = QTableWidget(0, 7)
+        self.sales_table.setHorizontalHeaderLabels(["#", "الفاتورة", "التاريخ", "المشتري", "رقم الموبايل", "الكاشير", "الإجمالي"])
         self.sales_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.configure_table(self.sales_table)
         layout.addWidget(self.sales_table)
@@ -697,7 +745,7 @@ class MainWindow(QMainWindow):
         self.sales_table.setRowCount(0)
         for sale in sales:
             row = self.sales_table.rowCount(); self.sales_table.insertRow(row)
-            for column, value in enumerate((str(row + 1), f"#{sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M"), sale.buyer_name or "-", sale.buyer_phone or "-", money(sale.total))): self.sales_table.setItem(row, column, QTableWidgetItem(str(value)))
+            for column, value in enumerate((str(row + 1), f"#{sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M"), sale.buyer_name or "-", sale.buyer_phone or "-", sale.cashier_username, money(sale.total))): self.sales_table.setItem(row, column, QTableWidgetItem(str(value)))
             self.sales_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, sale.id)
 
     def selected_sale(self):
@@ -709,6 +757,7 @@ class MainWindow(QMainWindow):
 
     def sale_text(self, sale):
         lines = [f"فاتورة رقم {sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M")]
+        lines.append(f"الكاشير: {sale.cashier_username}")
         if sale.buyer_name:
             lines.append(f"المشتري: {sale.buyer_name}")
         if sale.buyer_phone:
@@ -742,14 +791,68 @@ class MainWindow(QMainWindow):
         widget, layout = self.page("الإعدادات")
         layout.addWidget(QLabel("للطباعة: اكتب اسم الطابعة زي ما ظاهر في إعدادات Windows، احفظ، وبعدها دوس اختبار."))
         values = settings(); self.setting_fields = {}; form = QFormLayout()
-        for key, label in (("store_name", "اسم المتجر"), ("store_address", "العنوان"), ("store_phone", "الهاتف"), ("receipt_printer", "طابعة الإيصالات"), ("label_printer", "طابعة الملصقات")):
+        for key, label in (("store_name", "اسم المتجر"), ("store_address", "الموقع / العنوان"), ("store_phone", "رقم الهاتف"), ("receipt_printer", "طابعة الإيصالات"), ("label_printer", "طابعة الملصقات")):
             field = QLineEdit(values.get(key, "")); self.setting_fields[key] = field; form.addRow(label, field)
         save = QPushButton("احفظ الإعدادات"); save.clicked.connect(self.save_settings); receipt = QPushButton("اطبع إيصال تجريبي"); receipt.clicked.connect(self.test_receipt); label = QPushButton("اطبع باركود تجريبي"); label.clicked.connect(self.test_label)
         password = QPushButton("غيّر كلمة السر"); password.clicked.connect(self.change_admin_password)
         reset = QPushButton("إرجاع ضبط المصنع")
         reset.setObjectName("danger")
         reset.clicked.connect(self.factory_reset)
-        layout.addLayout(form); layout.addWidget(save); layout.addWidget(password); layout.addWidget(receipt); layout.addWidget(label); layout.addSpacing(20); layout.addWidget(reset); layout.addStretch(); return widget
+        layout.addLayout(form); layout.addWidget(save); layout.addWidget(password); layout.addWidget(receipt); layout.addWidget(label)
+        if self.current_user["role"] == "admin":
+            layout.addWidget(QLabel("حسابات الكاشيرين"))
+            cashier_form = QHBoxLayout()
+            self.cashier_username = QLineEdit()
+            self.cashier_username.setPlaceholderText("اسم المستخدم")
+            self.cashier_password = QLineEdit()
+            self.cashier_password.setPlaceholderText("كلمة السر")
+            self.cashier_password.setEchoMode(QLineEdit.EchoMode.Password)
+            add_cashier = QPushButton("إضافة كاشير")
+            add_cashier.clicked.connect(self.add_cashier)
+            cashier_form.addWidget(self.cashier_username)
+            cashier_form.addWidget(self.cashier_password)
+            cashier_form.addWidget(add_cashier)
+            layout.addLayout(cashier_form)
+            self.cashier_table = QTableWidget(0, 3)
+            self.cashier_table.setHorizontalHeaderLabels(["#", "اسم المستخدم", "الحالة"])
+            self.configure_table(self.cashier_table)
+            layout.addWidget(self.cashier_table)
+            toggle_cashier = QPushButton("تفعيل / إيقاف المحدد")
+            toggle_cashier.clicked.connect(self.toggle_selected_cashier)
+            layout.addWidget(toggle_cashier)
+            self.refresh_cashiers()
+        layout.addSpacing(20); layout.addWidget(reset); layout.addStretch(); return widget
+
+    def add_cashier(self):
+        try:
+            create_cashier(self.cashier_username.text(), self.cashier_password.text())
+            self.cashier_username.clear()
+            self.cashier_password.clear()
+            self.refresh_cashiers()
+        except ValueError as error:
+            QMessageBox.warning(self, "تعذر إضافة الكاشير", str(error))
+
+    def refresh_cashiers(self):
+        if not hasattr(self, "cashier_table"):
+            return
+        self.cashier_table.setRowCount(0)
+        for cashier in list_cashiers():
+            row = self.cashier_table.rowCount()
+            self.cashier_table.insertRow(row)
+            values = (str(row + 1), cashier.username, "فعال" if cashier.is_active else "موقوف")
+            for column, value in enumerate(values):
+                self.cashier_table.setItem(row, column, QTableWidgetItem(value))
+            self.cashier_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, cashier.id)
+            self.cashier_table.item(row, 2).setData(Qt.ItemDataRole.UserRole + 1, cashier.is_active)
+
+    def toggle_selected_cashier(self):
+        row = self.cashier_table.currentRow()
+        if row < 0:
+            return
+        cashier_id = self.cashier_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        active = self.cashier_table.item(row, 2).data(Qt.ItemDataRole.UserRole + 1)
+        set_cashier_active(int(cashier_id), not active)
+        self.refresh_cashiers()
 
     def save_settings(self):
         save_settings({key: field.text() for key, field in self.setting_fields.items()}); QMessageBox.information(self, "تم الحفظ", "تم حفظ إعدادات المتجر.")
@@ -759,7 +862,10 @@ class MainWindow(QMainWindow):
         if not accepted:
             return
         new_password, accepted = QInputDialog.getText(self, "تغيير كلمة السر", "كلمة السر الجديدة:", QLineEdit.EchoMode.Password)
-        if accepted and change_password(old_password, new_password):
+        if not accepted:
+            return
+        changed = change_password(old_password, new_password) if self.current_user["role"] == "admin" else change_cashier_password(self.current_user["username"], old_password, new_password)
+        if changed:
             QMessageBox.information(self, "تم التغيير", "كلمة السر اتغيرت.")
         else:
             QMessageBox.warning(self, "تعذر التغيير", "كلمة السر القديمة غلط أو الجديدة قصيرة.")
@@ -768,13 +874,13 @@ class MainWindow(QMainWindow):
         widget, layout = self.page("دليل الاستخدام")
         guide = QLabel(
             "<h2>ابدأ هنا</h2>"
-            "<p><b>1. الأقسام:</b> اعمل قسم زي مشروبات أو بقالة. اختار القسم من الجدول لو عايز تضيف قسم فرعي.</p>"
+            "<p><b>1. الأقسام:</b> اعمل قسم زي مشروبات أو بقالة من شاشة الأصناف.</p>"
             "<p><b>2. الأصناف:</b> اكتب اسم الصنف والسعر والكمية الموجودة واختار قسم. سيب الباركود فاضي وهو هيتعمل أرقام لوحده.</p>"
             "<p><b>3. المخزون:</b> غيّر رقم المخزون في الجدول واضغط Enter، أو اختار صنف واستخدم خانة الكمية تحت الجدول.</p>"
             "<p><b>4. البيع:</b> امسح الباركود واضغط Enter. اكتب المبلغ المدفوع واضغط بيع نقدي.</p>"
             "<p><b>5. طباعة الباركود:</b> من شاشة الأصناف اختار الصنف واضغط اطبع باركود، وبعدها اكتب عدد النسخ.</p>"
             "<p><b>6. الطابعات:</b> من الإعدادات اكتب اسم طابعة Windows واحفظ، وبعدها اطبع اختبار.</p>"
-            "<p><b>الدخول:</b> كلمة السر الافتراضية أول مرة هي <b>1234</b>. لو نسيتها استخدم كود الاسترجاع <b>SANDY-RESET</b> من شاشة الدخول وغيّرها.</p>"
+            "<p><b>الدخول:</b> المدير يدخل باسم المستخدم <b>admin</b> وكلمة السر الافتراضية <b>1234</b>. المدير يضيف حسابات الكاشيرين من الإعدادات.</p>"
             "<p>لو عايز تعدّل صنف: اختاره من الجدول، عدّل البيانات فوق، واضغط عدّل المحدد.</p>"
         )
         guide.setWordWrap(True)

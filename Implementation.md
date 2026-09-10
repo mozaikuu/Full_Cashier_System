@@ -6,13 +6,13 @@ todos:
      content: "Scaffold Sandy_Cashier: PySide6 app shell, requirements.txt, folder layout, shared theme/stylesheet"
      status: pending
    - id: data-model
-     content: "Implement SQLAlchemy models: categories, subcategories, product_category_links (many-to-many), products, variants, stock_movements, sales, settings (store_id placeholder, EGP, no tax, receipt header defaults)"
+    content: "Implement SQLAlchemy models: categories, product_category_links (many-to-many), products, variants, stock_movements, sales, settings (store_id placeholder, EGP, no tax, receipt header defaults)"
      status: pending
    - id: category-crud
-     content: "Build Categories screen: two-level CRUD with sort_order and active flag"
+    content: "Build category CRUD inside the Products screen with sort_order and active flag"
      status: pending
    - id: product-crud
-     content: "Build Products screen: variant-aware CRUD, multi-category picker (primary + additional), search/filter by category/subcategory/barcode/name"
+    content: "Build Products screen: variant-aware CRUD, multi-category picker (primary + additional), search/filter by category/barcode/name"
      status: pending
    - id: inventory-module
      content: "Build Inventory screen: restock/adjust, movement history, low-stock highlighting"
@@ -130,16 +130,14 @@ flowchart TB
 
 ---
 
-## How to categorize and sub-categorize
+## How to categorize
 
-Two-level hierarchy (Category → optional Subcategory) plus **many-to-many** product links.
+Use a flat category list with **many-to-many** product links.
 
 ```mermaid
 erDiagram
-    categories ||--o{ subcategories : has
     products ||--o{ product_category_links : classified_as
     categories ||--o{ product_category_links : includes
-    subcategories ||--o{ product_category_links : narrows
     products ||--o{ product_variants : has
     product_variants ||--o{ stock_movements : tracks
     sales ||--o{ sale_lines : contains
@@ -148,11 +146,9 @@ erDiagram
 
 **Rules:**
 
-1. A product can belong to **multiple** category/subcategory pairs.
+1. A product can belong to **multiple** categories.
 2. At least **one** classification is required; one link is **primary** (`is_primary`) for display and receipts.
-3. Subcategory is optional on each link.
-4. Price and stock live on **variants**. Simple items get one auto-created variant.
-5. No 3+ level trees in v1.
+3. Price and stock live on **variants**. Simple items get one auto-created variant.
 
 **UI:** multi-select category rows with primary marker; filter OR by category; search name / SKU / barcode; primary category + “+N more” in tables.
 
@@ -161,9 +157,8 @@ erDiagram
 ## Core data model (v1)
 
 - `categories` — id, name, sort_order, is_active
-- `subcategories` — id, category_id, name, sort_order
 - `products` — id, name, description, is_active, **store_id** (default 1)
-- `product_category_links` — product_id, category_id, subcategory_id (nullable), **is_primary**, unique (product_id, category_id, subcategory_id)
+- `product_category_links` — product_id, category_id, **is_primary**, unique (product_id, category_id)
 - `product_variants` — product_id, sku, barcode (unique), price (EGP), cost (EGP), stock_qty, reorder_level, attributes_json
 - `stock_movements` — variant_id, qty_change, reason (`sale`, `restock`, `adjustment`), reference_id, created_at
 - `sales` — total (EGP), payment_method, created_at, **store_id**
@@ -191,7 +186,6 @@ flowchart LR
     Dashboard --> Checkout
     Dashboard --> Inventory
     Dashboard --> SalesHistory
-    Dashboard --> Categories
     Dashboard --> Settings
 ```
 
@@ -199,7 +193,7 @@ flowchart LR
 | ----------------- | ------------------------------------------------------------- | --------------------------------------------- |
 | **Dashboard**     | Today’s sales total (EGP), transaction count, low-stock count | Shortcuts to Checkout                         |
 | **Products**      | CRUD + variants + multi-category + print label                | Split list/form; category chips               |
-| **Categories**    | CRUD categories/subcategories                                 | Warn if products still linked                 |
+| **Products**      | CRUD categories, products, variants, and print labels         | Add categories beside the product form        |
 | **Inventory**     | Restock, adjust, movement history                             | Low-stock colors; category filter             |
 | **Checkout**      | Scan → cart → pay cash → XP-Q80AS receipt                     | Barcode field always focused; large EGP total |
 | **Sales history** | Past receipts, filter date/product/category                   | View / reprint receipt only (no Start Return) |

@@ -26,6 +26,8 @@ def init_db() -> None:
             connection.execute(text("ALTER TABLE sales ADD COLUMN buyer_name VARCHAR(160) NOT NULL DEFAULT ''"))
         if "buyer_phone" not in columns:
             connection.execute(text("ALTER TABLE sales ADD COLUMN buyer_phone VARCHAR(40) NOT NULL DEFAULT ''"))
+        if "cashier_username" not in columns:
+            connection.execute(text("ALTER TABLE sales ADD COLUMN cashier_username VARCHAR(80) NOT NULL DEFAULT 'admin'"))
     with SessionLocal.begin() as session:
         defaults = {
             "store_name": "fyonka",

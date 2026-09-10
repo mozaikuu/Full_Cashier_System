@@ -4,7 +4,7 @@ from uuid import uuid4
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import joinedload
 from app.database import SessionLocal
-from app.models import Category, Product, ProductCategoryLink, Sale, SaleLine, Setting, StockMovement, Subcategory, Variant
+from app.models import Category, Product, ProductCategoryLink, Sale, SaleLine, Setting, StockMovement, Variant
 
 
 def money(value: Decimal | int | float) -> str:
@@ -46,26 +46,6 @@ class CategoryService:
                 if session.scalar(select(func.count(ProductCategoryLink.id)).where(ProductCategoryLink.category_id == category_id)):
                     raise ValueError("لا يمكن حذف تصنيف مرتبط بمنتجات")
                 session.delete(category)
-
-    @staticmethod
-    def subcategories(category_id: int):
-        with SessionLocal() as session:
-            return session.scalars(select(Subcategory).where(Subcategory.category_id == category_id).order_by(Subcategory.sort_order, Subcategory.name)).all()
-
-    @staticmethod
-    def save_subcategory(category_id: int, name: str, sort_order: int = 0, subcategory_id: int | None = None):
-        with SessionLocal.begin() as session:
-            subcategory = session.get(Subcategory, subcategory_id) if subcategory_id else Subcategory(category_id=category_id)
-            subcategory.name, subcategory.sort_order = name.strip(), sort_order
-            session.add(subcategory)
-
-    @staticmethod
-    def delete_subcategory(subcategory_id: int):
-        with SessionLocal.begin() as session:
-            subcategory = session.get(Subcategory, subcategory_id)
-            if subcategory:
-                session.delete(subcategory)
-
 
 class ProductService:
     @staticmethod
@@ -178,7 +158,7 @@ class SaleService:
             session.delete(sale)
 
     @staticmethod
-    def checkout(items: dict[int, int], cash_received: Decimal, buyer_name: str = "", buyer_phone: str = "") -> tuple[Sale, Decimal]:
+    def checkout(items: dict[int, int], cash_received: Decimal, buyer_name: str = "", buyer_phone: str = "", cashier_username: str = "admin") -> tuple[Sale, Decimal]:
         with SessionLocal.begin() as session:
             if not items or any(quantity <= 0 for quantity in items.values()):
                 raise ValueError("سلة المشتريات فارغة")
@@ -187,7 +167,7 @@ class SaleService:
                 raise ValueError("الصنف غير موجود")
             if any(variants[key].stock_qty < qty for key, qty in items.items()):
                 raise ValueError("المخزون غير كافٍ")
-            sale = Sale(payment_method="cash", buyer_name=buyer_name.strip(), buyer_phone=buyer_phone.strip())
+            sale = Sale(payment_method="cash", buyer_name=buyer_name.strip(), buyer_phone=buyer_phone.strip(), cashier_username=cashier_username.strip() or "admin")
             total = Decimal("0")
             session.add(sale)
             session.flush()

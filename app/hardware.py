@@ -4,7 +4,12 @@ from app.services import money, settings
 class ReceiptPrinter:
     def print_sale(self, sale) -> None:
         values = settings()
-        lines = [values.get("store_name", "fyonka"), values.get("store_address", "baltim"), values.get("store_phone", "")]
+        lines = [
+            values.get("store_name", "fyonka"),
+            values.get("store_address", "baltim"),
+            values.get("store_phone", ""),
+            f"الكاشير: {getattr(sale, 'cashier_username', 'admin')}",
+        ]
         if getattr(sale, "buyer_name", ""):
             lines.append(f"المشتري: {sale.buyer_name}")
         if getattr(sale, "buyer_phone", ""):
