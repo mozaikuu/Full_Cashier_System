@@ -1,6 +1,6 @@
 from decimal import Decimal
 from app.database import Base, engine
-from app.auth import authenticate, change_password, initialize_auth
+from app.auth import authenticate, authenticate_user, change_password, create_cashier, initialize_auth
 from app.services import CategoryService, InventoryService, ProductService, ReportService, SaleService
 
 
@@ -104,6 +104,27 @@ def test_buyer_details_are_saved_on_receipt():
     assert saved.id == sale.id
     assert saved.buyer_name == "أحمد"
     assert saved.buyer_phone == "01000000000"
+
+
+def test_cashier_accounts_authenticate_independently():
+    create_cashier("Mona", "secret")
+    assert authenticate_user("mona", "secret") == {"username": "mona", "role": "cashier"}
+    assert authenticate_user("mona", "wrong") is None
+    assert authenticate_user("admin", "1234") is None
+
+
+def test_archiving_can_restore_stock_and_second_delete_is_permanent():
+    CategoryService.save("Archive")
+    category_id = CategoryService.list()[0].id
+    variant = ProductService.create("Archived item", "", "", Decimal("5.00"), Decimal("0"), 5, 1, category_id)
+    sale, _ = SaleService.checkout({variant.id: 2}, Decimal("10.00"))
+    assert ProductService.search(variant.barcode)[0].stock_qty == 3
+    assert SaleService.archive_or_delete_sale(sale.id, restore_stock=True) == "archived"
+    assert ProductService.search(variant.barcode)[0].stock_qty == 5
+    assert SaleService.list_sales() == []
+    assert len(SaleService.list_sales(include_archived=True)) == 1
+    assert SaleService.archive_or_delete_sale(sale.id) == "deleted"
+    assert SaleService.list_sales(include_archived=True) == []
 
 
 def test_low_stock_excludes_inactive_products_and_zero_reorder_levels():

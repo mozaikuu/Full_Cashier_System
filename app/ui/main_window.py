@@ -4,14 +4,14 @@ import re
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QFont, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+    QAbstractItemView, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPushButton, QScrollArea, QSpinBox,
     QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QHeaderView, QGridLayout, QFrame,
 )
 from sqlalchemy import select
 
 from app.database import SessionLocal
-from app.auth import change_cashier_password, change_password, create_cashier, initialize_auth, list_cashiers, set_cashier_active
+from app.auth import change_cashier_password, change_password, create_cashier, delete_cashier, initialize_auth, list_cashiers, set_cashier_active
 from app.database import factory_reset
 from app.hardware import LabelPrinter, ReceiptPrinter
 from app.importer import create_template, import_products
@@ -546,13 +546,17 @@ class MainWindow(QMainWindow):
 
     def add_product(self):
         category_ids = self.selected_category_ids()
+        if not category_ids and self.category_parent.currentData():
+            category_ids = [self.category_parent.currentData()]
+            self.selected_category_ids_state = set(category_ids)
+            self.update_category_button()
         if not self.p_name.text().strip() or not category_ids:
             QMessageBox.warning(self, "بيانات ناقصة", "اكتب اسم الصنف واختار قسم واحد على الأقل.")
             return
         try:
             variant = ProductService.create(self.p_name.text(), self.p_sku.text(), self.p_barcode.text(), Decimal(str(self.p_price.value())), Decimal(str(self.p_cost.value())), self.p_stock.value(), self.p_reorder.value(), category_ids[0])
             ProductService.update(variant.product_id, self.p_name.text(), variant.sku, variant.barcode, Decimal(str(self.p_price.value())), Decimal(str(self.p_cost.value())), self.p_stock.value(), self.p_reorder.value(), category_ids)
-            self.refresh_products(); self.refresh_inventory(); self.refresh_dashboard(); self.clear_product_form(); QMessageBox.information(self, "تم الحفظ", "تمت إضافة المنتج.")
+            self.refresh_products(); self.refresh_inventory(); self.refresh_dashboard(); self.clear_product_form(); self.p_name.setFocus(); QMessageBox.information(self, "تم الحفظ", "تمت إضافة المنتج.")
         except Exception as error:
             QMessageBox.warning(self, "تعذر الحفظ", str(error))
 
@@ -635,6 +639,7 @@ class MainWindow(QMainWindow):
         self.selected_category_ids_state.clear()
         self.update_category_button()
         self.product_table.clearSelection()
+        self.p_name.setFocus()
 
     def clear_product_form(self):
         self.new_product()
@@ -712,9 +717,14 @@ class MainWindow(QMainWindow):
 
     def add_category(self):
         if self.category_name.text().strip():
-            CategoryService.save(self.category_name.text())
+            name = self.category_name.text().strip()
+            CategoryService.save(name)
             self.category_name.clear()
             self.refresh_product_categories()
+            index = self.category_parent.findText(name)
+            if index >= 0:
+                self.category_parent.setCurrentIndex(index)
+            self.category_name.setFocus()
 
     def delete_category(self):
         category_id = self.category_parent.currentData()
@@ -723,29 +733,33 @@ class MainWindow(QMainWindow):
         try:
             CategoryService.delete(int(category_id))
             self.refresh_product_categories()
+            self.category_name.setFocus()
         except ValueError as error: QMessageBox.warning(self, "تعذر الحذف", str(error))
 
     def sales(self):
         widget, layout = self.page("الفواتير")
-        layout.addWidget(QLabel("هنا هتلاقي كل الفواتير. اختار فاتورة عشان تعرضها أو تعدّل كمياتها أو تعيد طباعتها. الحذف بيمسح السجل بس ومش بيرجع فلوس أو مخزون."))
-        self.sales_table = QTableWidget(0, 7)
-        self.sales_table.setHorizontalHeaderLabels(["#", "الفاتورة", "التاريخ", "المشتري", "رقم الموبايل", "الكاشير", "الإجمالي"])
+        layout.addWidget(QLabel("اختار فاتورة لمعاينة الإيصال أو الباركود أو طباعتها. الحذف الأول يؤرشفها، والحذف الثاني يمسحها نهائياً."))
+        self.show_archived_sales = QCheckBox("عرض الأرشيف")
+        self.show_archived_sales.toggled.connect(self.refresh_sales)
+        layout.addWidget(self.show_archived_sales)
+        self.sales_table = QTableWidget(0, 8)
+        self.sales_table.setHorizontalHeaderLabels(["#", "الفاتورة", "التاريخ", "المشتري", "رقم الموبايل", "الكاشير", "الحالة", "الإجمالي"])
         self.sales_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.configure_table(self.sales_table)
         layout.addWidget(self.sales_table)
         actions = QHBoxLayout()
-        for text, callback in (("اعرض الفاتورة", self.view_selected_sale), ("إعادة طباعة", self.reprint_selected_sale), ("احذف الفاتورة", self.delete_selected_sale)):
+        for text, callback in (("معاينة الإيصال", self.view_selected_sale), ("معاينة الباركود", self.view_selected_barcode), ("إعادة طباعة", self.reprint_selected_sale), ("أرشف / احذف", self.delete_selected_sale)):
             button = QPushButton(text); button.clicked.connect(callback); actions.addWidget(button)
         layout.addLayout(actions)
         self.refresh_sales()
         return widget
 
     def refresh_sales(self):
-        sales = SaleService.list_sales()
+        sales = SaleService.list_sales(self.show_archived_sales.isChecked())
         self.sales_table.setRowCount(0)
         for sale in sales:
             row = self.sales_table.rowCount(); self.sales_table.insertRow(row)
-            for column, value in enumerate((str(row + 1), f"#{sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M"), sale.buyer_name or "-", sale.buyer_phone or "-", sale.cashier_username, money(sale.total))): self.sales_table.setItem(row, column, QTableWidgetItem(str(value)))
+            for column, value in enumerate((str(row + 1), f"#{sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M"), sale.buyer_name or "-", sale.buyer_phone or "-", sale.cashier_username, "مؤرشفة" if sale.archived else "نشطة", money(sale.total))): self.sales_table.setItem(row, column, QTableWidgetItem(str(value)))
             self.sales_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, sale.id)
 
     def selected_sale(self):
@@ -753,7 +767,7 @@ class MainWindow(QMainWindow):
         if row < 0 or not self.sales_table.item(row, 0):
             return None
         sale_id = int(self.sales_table.item(row, 0).data(Qt.ItemDataRole.UserRole))
-        return next((sale for sale in SaleService.list_sales() if sale.id == sale_id), None)
+        return next((sale for sale in SaleService.list_sales(self.show_archived_sales.isChecked()) if sale.id == sale_id), None)
 
     def sale_text(self, sale):
         lines = [f"فاتورة رقم {sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M")]
@@ -771,7 +785,41 @@ class MainWindow(QMainWindow):
     def view_selected_sale(self):
         sale = self.selected_sale()
         if sale:
-            QMessageBox.information(self, "تفاصيل الفاتورة", self.sale_text(sale))
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"معاينة الإيصال #{sale.id}")
+            dialog.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+            layout = QVBoxLayout(dialog)
+            receipt = QLabel(ReceiptPrinter.receipt_text(sale))
+            receipt.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            receipt.setStyleSheet("font-family: Consolas; background: white; color: black; padding: 18px;")
+            layout.addWidget(receipt)
+            dialog.exec()
+
+    def view_selected_barcode(self):
+        sale = self.selected_sale()
+        if not sale:
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"باركود الفاتورة #{sale.id}")
+        layout = QVBoxLayout(dialog)
+        image = QPixmap(560, 190)
+        image.fill(Qt.GlobalColor.white)
+        painter = QPainter(image)
+        painter.setPen(Qt.GlobalColor.black)
+        barcode = f"SALE-{sale.id:08d}"
+        x = 28
+        for index, character in enumerate(barcode):
+            width = 2 + (ord(character) % 3)
+            painter.fillRect(x, 20, width, 105, Qt.GlobalColor.black)
+            x += width + (2 if index % 2 else 3)
+        painter.setFont(QFont("Arial", 18))
+        painter.drawText(28, 158, barcode)
+        painter.end()
+        preview = QLabel()
+        preview.setPixmap(image)
+        preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(preview)
+        dialog.exec()
 
     def reprint_selected_sale(self):
         sale = self.selected_sale()
@@ -782,10 +830,26 @@ class MainWindow(QMainWindow):
         sale = self.selected_sale()
         if not sale:
             return
-        answer = QMessageBox.warning(self, "حذف الفاتورة", "الفاتورة هتتمسح من السجل فقط، ومش هيحصل استرجاع فلوس أو رجوع للمخزون. تكمل؟", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-        if answer == QMessageBox.StandardButton.Yes:
-            SaleService.delete_sale(sale.id)
-            self.refresh_sales()
+        if sale.archived:
+            answer = QMessageBox.warning(self, "حذف نهائي", "الفاتورة مؤرشفة. الحذف الآن نهائي ولا يمكن استرجاعها. تكمل؟", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+            if answer == QMessageBox.StandardButton.Yes:
+                SaleService.archive_or_delete_sale(sale.id)
+                self.refresh_sales()
+            return
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("أرشفة الفاتورة")
+        dialog.setText("أرشفة الفاتورة؟ اختار هل تريد إعادة المنتجات للمخزون.")
+        restore = dialog.addButton("أرشف وأعد المنتجات", QMessageBox.ButtonRole.AcceptRole)
+        archive = dialog.addButton("أرشف فقط", QMessageBox.ButtonRole.DestructiveRole)
+        dialog.addButton("إلغاء", QMessageBox.ButtonRole.RejectRole)
+        dialog.exec()
+        if dialog.clickedButton() == restore:
+            SaleService.archive_or_delete_sale(sale.id, True)
+        elif dialog.clickedButton() == archive:
+            SaleService.archive_or_delete_sale(sale.id, False)
+        else:
+            return
+        self.refresh_sales()
 
     def settings_page(self):
         widget, layout = self.page("الإعدادات")
@@ -815,11 +879,23 @@ class MainWindow(QMainWindow):
             layout.addLayout(cashier_form)
             self.cashier_table = QTableWidget(0, 3)
             self.cashier_table.setHorizontalHeaderLabels(["#", "اسم المستخدم", "الحالة"])
+            self.cashier_table.setMinimumHeight(170)
+            self.cashier_table.setMaximumHeight(260)
+            self.cashier_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            self.cashier_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+            self.cashier_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
             self.configure_table(self.cashier_table)
+            self.cashier_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+            self.cashier_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            self.cashier_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
             layout.addWidget(self.cashier_table)
             toggle_cashier = QPushButton("تفعيل / إيقاف المحدد")
             toggle_cashier.clicked.connect(self.toggle_selected_cashier)
             layout.addWidget(toggle_cashier)
+            remove_cashier = QPushButton("حذف الكاشير المحدد")
+            remove_cashier.setObjectName("danger")
+            remove_cashier.clicked.connect(self.remove_selected_cashier)
+            layout.addWidget(remove_cashier)
             self.refresh_cashiers()
         layout.addSpacing(20); layout.addWidget(reset); layout.addStretch(); return widget
 
@@ -829,6 +905,7 @@ class MainWindow(QMainWindow):
             self.cashier_username.clear()
             self.cashier_password.clear()
             self.refresh_cashiers()
+            self.cashier_username.setFocus()
         except ValueError as error:
             QMessageBox.warning(self, "تعذر إضافة الكاشير", str(error))
 
@@ -836,7 +913,9 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "cashier_table"):
             return
         self.cashier_table.setRowCount(0)
-        for cashier in list_cashiers():
+        cashiers = list_cashiers()
+        self.cashier_table.setPlaceholderText("لا توجد حسابات كاشير بعد")
+        for cashier in cashiers:
             row = self.cashier_table.rowCount()
             self.cashier_table.insertRow(row)
             values = (str(row + 1), cashier.username, "فعال" if cashier.is_active else "موقوف")
@@ -853,6 +932,29 @@ class MainWindow(QMainWindow):
         active = self.cashier_table.item(row, 2).data(Qt.ItemDataRole.UserRole + 1)
         set_cashier_active(int(cashier_id), not active)
         self.refresh_cashiers()
+        self.cashier_table.setFocus()
+
+    def remove_selected_cashier(self):
+        row = self.cashier_table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "اختار كاشير", "اختار الكاشير اللي عايز تحذفه من الجدول الأول.")
+            return
+        cashier_id = self.cashier_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        username = self.cashier_table.item(row, 1).text()
+        if username == self.current_user["username"]:
+            QMessageBox.warning(self, "مينفعش تحذف نفسك", "سجّل الدخول بحساب مدير آخر لحذف هذا الحساب.")
+            return
+        answer = QMessageBox.warning(
+            self,
+            "حذف حساب الكاشير",
+            f"حذف حساب {username} نهائياً؟ الفواتير القديمة ستظل مرتبطة باسمه.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            delete_cashier(int(cashier_id))
+            self.refresh_cashiers()
+            self.cashier_username.setFocus()
 
     def save_settings(self):
         save_settings({key: field.text() for key, field in self.setting_fields.items()}); QMessageBox.information(self, "تم الحفظ", "تم حفظ إعدادات المتجر.")

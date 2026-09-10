@@ -42,9 +42,9 @@ A **single Windows desktop app** that covers:
 2. **Checkout** — scan barcodes, sell items, print receipts, auto-deduct stock
 3. **Reporting** — what sold, what is low/out of stock, daily totals
 
-**Access model:** one cashier uses the system on one PC. **No login, no roles** — app opens straight to the dashboard.
+**Access model:** multiple named cashier accounts use the system on one PC. The administrator manages accounts; each cashier signs in with a username and password, and each sale records the cashier.
 
-**Returns/refunds:** **out of scope.** The client has no return or refund policy. Do not build a Returns screen, refund receipts, or restock-on-return. Sales are final. Stock corrections happen only via Inventory (restock / adjustment).
+**Receipt corrections:** sales are archived first. The operator can optionally restore the sold products to stock; a second deletion permanently removes the archived receipt.
 
 Your client has:
 
@@ -199,7 +199,7 @@ flowchart LR
 | **Sales history** | Past receipts, filter date/product/category                   | View / reprint receipt only (no Start Return) |
 | **Settings**      | Store header (editable temps), printers, backup               | Test Print for both printers                  |
 
-**Usability:** one primary action per screen; confirm deletes; no login; persistent nav; keyboard-first checkout.
+**Usability:** one primary action per screen; confirm archive/delete actions; persistent nav; keyboard-first checkout; focus returns to the next product or category entry field.
 
 ---
 
@@ -263,7 +263,7 @@ Sandy_Cashier/
 
 ### Phase 1 — MVP
 
-- Nav, no login
+- Named cashier login and administrator account management
 - Categories, products (variants + many-to-many categories), inventory
 - Checkout (cash, EGP, no tax), XP-Q80AS receipt
 - XP-233B label print from Products
@@ -300,7 +300,7 @@ Sandy_Cashier/
 | Receipt header    | **fyonka / baltim / 01201538851** (Settings, temporary) |
 | Receipt printer   | **XP-Q80AS**, ESC/POS, 80mm                             |
 | Label printer     | **XP-233B**, TSPL, 2-inch                               |
-| Access            | Single cashier, no login                                |
+| Access            | Multiple cashier accounts with administrator controls     |
 | Returns           | **None** — sales are final                              |
 | Product seed data | **None** — cashier enters products in the app           |
 

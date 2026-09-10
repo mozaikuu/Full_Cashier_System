@@ -28,6 +28,10 @@ def init_db() -> None:
             connection.execute(text("ALTER TABLE sales ADD COLUMN buyer_phone VARCHAR(40) NOT NULL DEFAULT ''"))
         if "cashier_username" not in columns:
             connection.execute(text("ALTER TABLE sales ADD COLUMN cashier_username VARCHAR(80) NOT NULL DEFAULT 'admin'"))
+        if "archived" not in columns:
+            connection.execute(text("ALTER TABLE sales ADD COLUMN archived BOOLEAN NOT NULL DEFAULT 0"))
+        if "stock_restored" not in columns:
+            connection.execute(text("ALTER TABLE sales ADD COLUMN stock_restored BOOLEAN NOT NULL DEFAULT 0"))
     with SessionLocal.begin() as session:
         defaults = {
             "store_name": "fyonka",

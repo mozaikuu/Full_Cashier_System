@@ -2,7 +2,8 @@ from app.services import money, settings
 
 
 class ReceiptPrinter:
-    def print_sale(self, sale) -> None:
+    @staticmethod
+    def receipt_text(sale) -> str:
         values = settings()
         lines = [
             values.get("store_name", "fyonka"),
@@ -18,8 +19,14 @@ class ReceiptPrinter:
         for line in sale.lines:
             lines.append(f"{line.variant.product.name[:18]:18} {line.qty:>3} {money(line.line_total):>12}")
             lines.append(f"باركود: {line.variant.barcode}")
-        lines += ["-" * 32, f"الإجمالي {money(sale.total):>20}", "نقداً", "ممنوع المرتجع", "شكراً لزيارتكم"]
-        self._send("\n".join(lines) + "\n\n\x1dV\x00", values.get("receipt_printer", ""))
+        lines += ["-" * 32, f"الإجمالي {money(sale.total):>20}", f"فاتورة: SALE-{sale.id:08d}", "نقداً", "ممنوع المرتجع", "شكراً لزيارتكم"]
+        return "\n".join(lines)
+
+    def print_sale(self, sale) -> None:
+        values = settings()
+        barcode = f"{{BSALE-{sale.id:08d}"
+        barcode_command = "\x1dkI" + chr(len(barcode)) + barcode
+        self._send(self.receipt_text(sale) + "\n" + barcode_command + "\n\n\x1dV\x00", values.get("receipt_printer", ""))
 
     def test(self) -> None:
         self._send("اختبار طابعة الإيصالات\n\n\x1dV\x00", settings().get("receipt_printer", ""))

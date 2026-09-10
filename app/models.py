@@ -24,7 +24,7 @@ class Product(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     store_id: Mapped[int] = mapped_column(default=1)
-    variants: Mapped[list["Variant"]] = relationship(cascade="all, delete-orphan")
+    variants: Mapped[list["Variant"]] = relationship(back_populates="product", cascade="all, delete-orphan")
     categories: Mapped[list["ProductCategoryLink"]] = relationship(cascade="all, delete-orphan")
 
 
@@ -48,7 +48,7 @@ class Variant(Base):
     stock_qty: Mapped[int] = mapped_column(default=0)
     reorder_level: Mapped[int] = mapped_column(default=0)
     attributes_json: Mapped[str] = mapped_column(Text, default="{}")
-    product: Mapped[Product] = relationship(lazy="joined")
+    product: Mapped[Product] = relationship(back_populates="variants", lazy="joined")
 
 
 class StockMovement(Base):
@@ -72,6 +72,8 @@ class Sale(Base):
     buyer_name: Mapped[str] = mapped_column(String(160), default="")
     buyer_phone: Mapped[str] = mapped_column(String(40), default="")
     cashier_username: Mapped[str] = mapped_column(String(80), default="admin")
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    stock_restored: Mapped[bool] = mapped_column(Boolean, default=False)
     lines: Mapped[list["SaleLine"]] = relationship(cascade="all, delete-orphan")
 
 

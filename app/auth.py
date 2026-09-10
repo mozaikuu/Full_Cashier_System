@@ -74,6 +74,13 @@ def set_cashier_active(cashier_id: int, active: bool) -> None:
             cashier.is_active = active
 
 
+def delete_cashier(cashier_id: int) -> None:
+    with SessionLocal.begin() as session:
+        cashier = session.get(Cashier, cashier_id)
+        if cashier:
+            session.delete(cashier)
+
+
 def change_cashier_password(username: str, old_password: str, new_password: str) -> bool:
     if len(new_password) < 4:
         return False

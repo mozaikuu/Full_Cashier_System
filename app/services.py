@@ -145,17 +145,35 @@ class InventoryService:
 
 class SaleService:
     @staticmethod
-    def list_sales():
+    def list_sales(include_archived: bool = False):
         with SessionLocal() as session:
-            return session.scalars(select(Sale).options(joinedload(Sale.lines).joinedload(SaleLine.variant).joinedload(Variant.product)).order_by(Sale.created_at.desc())).unique().all()
+            query = select(Sale).options(joinedload(Sale.lines).joinedload(SaleLine.variant).joinedload(Variant.product))
+            if not include_archived:
+                query = query.where(Sale.archived.is_(False))
+            return session.scalars(query.order_by(Sale.created_at.desc())).unique().all()
 
     @staticmethod
-    def delete_sale(sale_id: int):
+    def archive_or_delete_sale(sale_id: int, restore_stock: bool = False):
         with SessionLocal.begin() as session:
             sale = session.get(Sale, sale_id)
             if not sale:
                 raise ValueError("الفاتورة مش موجودة")
-            session.delete(sale)
+            if sale.archived:
+                session.delete(sale)
+                return "deleted"
+            sale.archived = True
+            if restore_stock and not sale.stock_restored:
+                for line in sale.lines:
+                    variant = session.get(Variant, line.variant_id)
+                    if variant:
+                        variant.stock_qty += line.qty
+                        session.add(StockMovement(variant_id=variant.id, qty_change=line.qty, reason="sale_archive_restore", reference_id=str(sale.id)))
+                sale.stock_restored = True
+            return "archived"
+
+    @staticmethod
+    def delete_sale(sale_id: int):
+        return SaleService.archive_or_delete_sale(sale_id)
 
     @staticmethod
     def checkout(items: dict[int, int], cash_received: Decimal, buyer_name: str = "", buyer_phone: str = "", cashier_username: str = "admin") -> tuple[Sale, Decimal]:
@@ -200,8 +218,8 @@ class ReportService:
     def today():
         start = datetime.combine(datetime.today(), time.min)
         with SessionLocal() as session:
-            total = session.scalar(select(func.coalesce(func.sum(Sale.total), 0)).where(Sale.created_at >= start))
-            count = session.scalar(select(func.count(Sale.id)).where(Sale.created_at >= start))
+            total = session.scalar(select(func.coalesce(func.sum(Sale.total), 0)).where(Sale.created_at >= start, Sale.archived.is_(False)))
+            count = session.scalar(select(func.count(Sale.id)).where(Sale.created_at >= start, Sale.archived.is_(False)))
             low = session.scalar(select(func.count(Variant.id)).join(Variant.product).where(Product.is_active.is_(True), Variant.stock_qty <= Variant.reorder_level, Variant.reorder_level > 0))
             return Decimal(str(total or 0)), count or 0, low or 0
 
