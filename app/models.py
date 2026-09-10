@@ -5,6 +5,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
+def local_now() -> datetime:
+    return datetime.now()
+
+
 class Category(Base):
     __tablename__ = "categories"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -64,7 +68,7 @@ class StockMovement(Base):
     qty_change: Mapped[int] = mapped_column()
     reason: Mapped[str] = mapped_column(String(30))
     reference_id: Mapped[str] = mapped_column(String(80), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=local_now)
     variant: Mapped[Variant] = relationship()
 
 
@@ -73,7 +77,7 @@ class Sale(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     payment_method: Mapped[str] = mapped_column(String(30), default="cash")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=local_now)
     store_id: Mapped[int] = mapped_column(default=1)
     buyer_name: Mapped[str] = mapped_column(String(160), default="")
     buyer_phone: Mapped[str] = mapped_column(String(40), default="")

@@ -37,6 +37,7 @@ class MainWindow(QMainWindow):
         shell = QWidget()
         layout = QHBoxLayout(shell)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         layout.addWidget(self.stack, 5)
         layout.addWidget(self.nav, 1)
         self.setCentralWidget(shell)
@@ -62,6 +63,8 @@ class MainWindow(QMainWindow):
     def page(self, title):
         widget, layout = QWidget(), QVBoxLayout()
         widget.setLayout(layout)
+        layout.setContentsMargins(28, 24, 28, 28)
+        layout.setSpacing(14)
         heading = QLabel(title)
         heading.setObjectName("title")
         layout.addWidget(heading)
@@ -152,8 +155,14 @@ class MainWindow(QMainWindow):
         self.cash = QDoubleSpinBox()
         self.cash.setMaximum(999999999)
         self.cash.setDecimals(2)
+        self.cash.setMinimum(0)
+        self.cash.setButtonSymbols(QDoubleSpinBox.ButtonSymbols.NoButtons)
+        self.cash.setMinimumWidth(190)
+        self.cash.setObjectName("paidAmount")
         self.cash.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         self.cash.setSuffix(" جنيه")
+        self.cash.lineEdit().setPlaceholderText("اكتب المبلغ المدفوع")
+        self.cash.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cash.valueChanged.connect(self.update_change)
         self.change_label = QLabel("الباقي 0.00 جنيه")
         pay = QPushButton("بيع نقدي")
@@ -161,6 +170,8 @@ class MainWindow(QMainWindow):
         for item in (self.total_label, QLabel("المبلغ المدفوع"), self.cash, self.change_label, pay):
             footer.addWidget(item)
         layout.addLayout(footer)
+        self.setTabOrder(self.scan, self.cash)
+        self.setTabOrder(self.cash, pay)
         self.cart_items = {}
         self.scan.textChanged.connect(self.update_suggestions)
         return widget
@@ -300,7 +311,12 @@ class MainWindow(QMainWindow):
         return name.text(), phone.text()
 
     def products(self):
-        widget, layout = self.page("المنتجات")
+        widget, page_layout = self.page("المنتجات")
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        page_layout.addWidget(scroll)
         self.product_search = QLineEdit()
         self.product_search.setPlaceholderText("دوّر باسم الصنف أو الباركود")
         self.product_search.textChanged.connect(self.refresh_products)
@@ -322,7 +338,9 @@ class MainWindow(QMainWindow):
         self.p_cost = QDoubleSpinBox(); self.p_cost.setMaximum(999999); self.p_cost.setSuffix(" جنيه")
         self.p_stock = QSpinBox(); self.p_stock.setMaximum(999999)
         self.p_reorder = QSpinBox(); self.p_reorder.setMaximum(999999)
-        self.p_categories = QListWidget(); self.p_categories.setMaximumHeight(90)
+        self.p_categories = QPushButton("اختار الأقسام")
+        self.p_categories.clicked.connect(self.open_category_picker)
+        self.selected_category_ids_state = set()
         for label, field in (("اسم الصنف", self.p_name), ("الكود الداخلي (اختياري)", self.p_sku), ("الباركود (هيطلع لوحده)", self.p_barcode), ("سعر البيع", self.p_price), ("التكلفة", self.p_cost), ("الكمية الموجودة دلوقتي", self.p_stock), ("نطلب تاني لما يوصل لـ", self.p_reorder), ("الأقسام", self.p_categories)):
             form.addRow(label, field)
         actions = QHBoxLayout()
@@ -331,10 +349,12 @@ class MainWindow(QMainWindow):
         layout.addLayout(form); layout.addLayout(actions)
         self.product_table = QTableWidget(0, 7)
         self.product_table.setHorizontalHeaderLabels(["#", "الصنف", "الكود الداخلي", "الباركود", "السعر", "المخزون", "القسم"])
+        self.product_table.setMinimumHeight(320)
         self.configure_table(self.product_table)
         self.product_table.itemSelectionChanged.connect(self.load_selected_product)
         layout.addWidget(self.product_table)
         self.refresh_product_categories(); self.refresh_products()
+        scroll.setWidget(content)
         return widget
 
     def catalog(self):
@@ -434,15 +454,34 @@ class MainWindow(QMainWindow):
         self.p_name.setFocus()
 
     def refresh_product_categories(self):
-        self.p_categories.clear()
+        self.category_choices = CategoryService.list()
+        self.update_category_button()
+
+    def update_category_button(self):
+        names = [category.name for category in getattr(self, "category_choices", []) if category.id in self.selected_category_ids_state]
+        self.p_categories.setText("، ".join(names) if names else "اختار الأقسام")
+
+    def open_category_picker(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("اختيار أقسام الصنف")
+        dialog.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        layout = QVBoxLayout(dialog)
+        checklist = QListWidget()
         for category in CategoryService.list():
-            item = QListWidgetItem(category.name, self.p_categories)
+            item = QListWidgetItem(category.name, checklist)
             item.setData(Qt.ItemDataRole.UserRole, category.id)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Unchecked)
+            item.setCheckState(Qt.CheckState.Checked if category.id in self.selected_category_ids_state else Qt.CheckState.Unchecked)
+        layout.addWidget(checklist)
+        save = QPushButton("حفظ الأقسام")
+        save.clicked.connect(dialog.accept)
+        layout.addWidget(save)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.selected_category_ids_state = {checklist.item(index).data(Qt.ItemDataRole.UserRole) for index in range(checklist.count()) if checklist.item(index).checkState() == Qt.CheckState.Checked}
+            self.update_category_button()
 
     def selected_category_ids(self):
-        return [self.p_categories.item(index).data(Qt.ItemDataRole.UserRole) for index in range(self.p_categories.count()) if self.p_categories.item(index).checkState() == Qt.CheckState.Checked]
+        return list(self.selected_category_ids_state)
 
     def add_product(self):
         category_ids = self.selected_category_ids()
@@ -468,7 +507,8 @@ class MainWindow(QMainWindow):
         if not variant: return
         self.p_name.setText(variant.product.name); self.p_sku.setText(variant.sku or ""); self.p_barcode.setText(variant.barcode or ""); self.p_price.setValue(float(variant.price)); self.p_cost.setValue(float(variant.cost)); self.p_stock.setValue(variant.stock_qty); self.p_reorder.setValue(variant.reorder_level)
         linked = {link.category_id for link in ProductService.categories(variant.product_id)}
-        for index in range(self.p_categories.count()): self.p_categories.item(index).setCheckState(Qt.CheckState.Checked if self.p_categories.item(index).data(Qt.ItemDataRole.UserRole) in linked else Qt.CheckState.Unchecked)
+        self.selected_category_ids_state = linked
+        self.update_category_button()
 
     def update_product(self):
         variant = self.selected_variant()
@@ -531,7 +571,8 @@ class MainWindow(QMainWindow):
         self.selected_product_id = None
         for field in (self.p_name, self.p_sku, self.p_barcode): field.clear()
         self.p_price.setValue(0); self.p_cost.setValue(0); self.p_stock.setValue(0); self.p_reorder.setValue(0)
-        for index in range(self.p_categories.count()): self.p_categories.item(index).setCheckState(Qt.CheckState.Unchecked)
+        self.selected_category_ids_state.clear()
+        self.update_category_button()
         self.product_table.clearSelection()
 
     def clear_product_form(self):
