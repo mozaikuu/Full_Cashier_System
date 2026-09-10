@@ -69,12 +69,14 @@ class CategoryService:
 
 class ProductService:
     @staticmethod
-    def search(term: str = ""):
+    def search(term: str = "", category_id: int | None = None):
         with SessionLocal() as session:
             query = select(Variant).options(joinedload(Variant.product)).join(Variant.product).where(Product.is_active.is_(True))
             if term.strip():
                 like = f"%{term.strip()}%"
                 query = query.where(or_(Product.name.ilike(like), Variant.barcode.ilike(like), Variant.sku.ilike(like)))
+            if category_id:
+                query = query.join(ProductCategoryLink).where(ProductCategoryLink.category_id == category_id)
             return session.scalars(query.order_by(Product.name)).all()
 
     @staticmethod
@@ -217,6 +219,16 @@ class SaleService:
 
 
 class ReportService:
+    @staticmethod
+    def low_stock():
+        with SessionLocal() as session:
+            query = select(Variant).join(Variant.product).where(
+                Product.is_active.is_(True),
+                Variant.stock_qty <= Variant.reorder_level,
+                Variant.reorder_level > 0,
+            ).order_by(Variant.stock_qty, Product.name)
+            return session.scalars(query).all()
+
     @staticmethod
     def today():
         start = datetime.combine(datetime.today(), time.min)

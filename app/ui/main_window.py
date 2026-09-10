@@ -4,9 +4,9 @@ import re
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QFont, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QDialog, QDoubleSpinBox, QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPushButton, QSpinBox,
-    QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QHeaderView,
+    QAbstractItemView, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+    QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPushButton, QScrollArea, QSpinBox,
+    QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QHeaderView, QGridLayout, QFrame,
 )
 from sqlalchemy import select
 
@@ -29,9 +29,9 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.selected_product_id = None
         self.nav = QListWidget()
-        self.nav.addItems(["الرئيسية", "البيع", "الأصناف", "المخزون", "الأقسام", "الفواتير", "الإعدادات", "دليل الاستخدام"])
+        self.nav.addItems(["الرئيسية", "البيع", "الأصناف", "المخزون", "الأقسام", "الفواتير", "الإعدادات", "استعراض الأصناف", "دليل الاستخدام"])
         self.nav.currentRowChanged.connect(self.change_page)
-        for page in (self.dashboard(), self.checkout(), self.products(), self.inventory(), self.categories(), self.sales(), self.settings_page(), self.guide()):
+        for page in (self.dashboard(), self.checkout(), self.products(), self.inventory(), self.categories(), self.sales(), self.settings_page(), self.catalog(), self.guide()):
             self.stack.addWidget(page)
         self.nav.setCurrentRow(0)
         shell = QWidget()
@@ -53,6 +53,11 @@ class MainWindow(QMainWindow):
             self.refresh_inventory()
         elif index == 4:
             self.refresh_categories()
+        elif index == 5:
+            self.refresh_sales()
+        elif index == 7:
+            self.refresh_catalog_categories()
+            self.refresh_catalog()
 
     def page(self, title):
         widget, layout = QWidget(), QVBoxLayout()
@@ -91,6 +96,12 @@ class MainWindow(QMainWindow):
         quick = QPushButton("فتح شاشة البيع")
         quick.clicked.connect(lambda: self.nav.setCurrentRow(1))
         layout.addWidget(quick)
+        layout.addWidget(QLabel("الأصناف اللي قربت تخلص"))
+        self.low_stock_table = QTableWidget(0, 3)
+        self.low_stock_table.setHorizontalHeaderLabels(["الصنف", "الكمية الحالية", "حد الطلب"])
+        self.configure_table(self.low_stock_table)
+        self.low_stock_table.setMaximumHeight(220)
+        layout.addWidget(self.low_stock_table)
         layout.addStretch()
         self.refresh_dashboard()
         return widget
@@ -102,6 +113,12 @@ class MainWindow(QMainWindow):
         values = {"total": money(total), "count": str(count), "low": str(low)}
         for key, (label, metric) in self.dashboard_metrics.items():
             metric.setText(f"{label}\n{values[key]}")
+        self.low_stock_table.setRowCount(0)
+        for variant in ReportService.low_stock():
+            row = self.low_stock_table.rowCount()
+            self.low_stock_table.insertRow(row)
+            for column, value in enumerate((variant.product.name, variant.stock_qty, variant.reorder_level)):
+                self.low_stock_table.setItem(row, column, QTableWidgetItem(str(value)))
 
     def checkout(self):
         widget, layout = self.page("المبيعات")
@@ -252,6 +269,7 @@ class MainWindow(QMainWindow):
             self.cart_items.clear()
             self.cash.setValue(0)
             self.refresh_cart()
+            self.refresh_sales()
             self.refresh_dashboard()
         except ValueError as error:
             QMessageBox.warning(self, "تعذر إتمام البيع", str(error))
@@ -287,6 +305,17 @@ class MainWindow(QMainWindow):
         self.product_search.setPlaceholderText("دوّر باسم الصنف أو الباركود")
         self.product_search.textChanged.connect(self.refresh_products)
         layout.addWidget(self.product_search)
+        barcode_scan_row = QHBoxLayout()
+        barcode_scan_row.addWidget(QLabel("باركود الصنف الجاهز"))
+        self.product_barcode_scan = QLineEdit()
+        self.product_barcode_scan.setPlaceholderText("امسح الباركود هنا واضغط Enter")
+        self.product_barcode_scan.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+        self.product_barcode_scan.returnPressed.connect(self.use_scanned_product_barcode)
+        barcode_scan_row.addWidget(self.product_barcode_scan)
+        scan_button = QPushButton("استخدم الباركود")
+        scan_button.clicked.connect(self.use_scanned_product_barcode)
+        barcode_scan_row.addWidget(scan_button)
+        layout.addLayout(barcode_scan_row)
         form = QFormLayout()
         self.p_name, self.p_sku, self.p_barcode = QLineEdit(), QLineEdit(), QLineEdit()
         self.p_price = QDoubleSpinBox(); self.p_price.setMaximum(999999); self.p_price.setSuffix(" جنيه")
@@ -307,6 +336,102 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.product_table)
         self.refresh_product_categories(); self.refresh_products()
         return widget
+
+    def catalog(self):
+        widget, layout = self.page("استعراض الأصناف")
+        layout.addWidget(QLabel("اختار قسم أو اكتب اسم الصنف أو الباركود عشان تلاقي الصنف بسرعة."))
+        filters = QHBoxLayout()
+        self.catalog_search = QLineEdit()
+        self.catalog_search.setPlaceholderText("دوّر باسم الصنف أو الباركود")
+        self.catalog_search.textChanged.connect(self.refresh_catalog)
+        self.catalog_category = QComboBox()
+        self.catalog_category.addItem("كل الأقسام", None)
+        for category in CategoryService.list():
+            self.catalog_category.addItem(category.name, category.id)
+        self.catalog_category.currentIndexChanged.connect(self.refresh_catalog)
+        filters.addWidget(self.catalog_search)
+        filters.addWidget(self.catalog_category)
+        layout.addLayout(filters)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        self.catalog_container = QWidget()
+        self.catalog_grid = QGridLayout(self.catalog_container)
+        self.catalog_grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+        scroll.setWidget(self.catalog_container)
+        layout.addWidget(scroll)
+        self.refresh_catalog()
+        return widget
+
+    def refresh_catalog_categories(self):
+        if not hasattr(self, "catalog_category"):
+            return
+        selected_id = self.catalog_category.currentData()
+        self.catalog_category.blockSignals(True)
+        self.catalog_category.clear()
+        self.catalog_category.addItem("كل الأقسام", None)
+        for category in CategoryService.list():
+            self.catalog_category.addItem(category.name, category.id)
+        selected_index = self.catalog_category.findData(selected_id)
+        self.catalog_category.setCurrentIndex(selected_index if selected_index >= 0 else 0)
+        self.catalog_category.blockSignals(False)
+
+    def refresh_catalog(self):
+        if not hasattr(self, "catalog_grid"):
+            return
+        while self.catalog_grid.count():
+            item = self.catalog_grid.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        category_id = self.catalog_category.currentData()
+        variants = ProductService.search(self.catalog_search.text(), category_id)
+        with SessionLocal() as session:
+            categories = {category.id: category.name for category in session.scalars(select(Category)).all()}
+        for index, variant in enumerate(variants):
+            card = QFrame()
+            card.setObjectName("productCard")
+            card_layout = QVBoxLayout(card)
+            links = ProductService.categories(variant.product_id)
+            category_names = ", ".join(categories[link.category_id] for link in links if link.category_id in categories)
+            title = QLabel(variant.product.name)
+            title.setObjectName("cardTitle")
+            title.setWordWrap(True)
+            card_layout.addWidget(title)
+            card_layout.addWidget(QLabel(f"القسم: {category_names or 'بدون قسم'}"))
+            card_layout.addWidget(QLabel(f"الباركود: {variant.barcode or '-'}"))
+            card_layout.addWidget(QLabel(f"السعر: {money(variant.price)}"))
+            stock = QLabel(f"المخزون: {variant.stock_qty}")
+            stock.setObjectName("stockValue")
+            card_layout.addWidget(stock)
+            sell = QPushButton("بيع الصنف")
+            sell.clicked.connect(lambda checked=False, variant_id=variant.id: self.add_catalog_item(variant_id))
+            card_layout.addWidget(sell)
+            self.catalog_grid.addWidget(card, index // 4, index % 4)
+
+    def add_catalog_item(self, variant_id):
+        self.cart_items[variant_id] = self.cart_items.get(variant_id, 0) + 1
+        self.refresh_cart()
+        self.nav.setCurrentRow(1)
+
+    def use_scanned_product_barcode(self):
+        barcode = self.product_barcode_scan.text().strip()
+        if not barcode:
+            return
+        matches = ProductService.search(barcode)
+        if matches and matches[0].barcode == barcode:
+            variant = matches[0]
+            self.selected_product_id = variant.id
+            self.refresh_products()
+            for row in range(self.product_table.rowCount()):
+                item = self.product_table.item(row, 0)
+                if item and item.data(Qt.ItemDataRole.UserRole) == variant.id:
+                    self.product_table.selectRow(row)
+                    break
+            self.product_barcode_scan.clear()
+            QMessageBox.information(self, "الصنف موجود", "الباركود ده مرتبط بصنف موجود واتحدد في الجدول.")
+            return
+        self.p_barcode.setText(barcode)
+        self.product_barcode_scan.clear()
+        self.p_name.setFocus()
 
     def refresh_product_categories(self):
         self.p_categories.clear()

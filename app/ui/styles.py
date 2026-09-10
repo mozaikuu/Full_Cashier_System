@@ -18,4 +18,7 @@ QLabel#metric { background: white; border-left: 4px solid #e2a53b; padding: 16px
 QListWidget { background: #123f44; color: #d9eeee; border: 0; padding: 8px; }
 QListWidget::item { padding: 12px 10px; border-radius: 4px; }
 QListWidget::item:selected { background: #e2a53b; color: #17252b; }
+QFrame#productCard { background: white; border: 1px solid #d7e0e0; border-radius: 8px; padding: 8px; }
+QLabel#cardTitle { color: #123f44; font-size: 17px; font-weight: 700; }
+QLabel#stockValue { color: #126e70; font-weight: 700; }
 """
