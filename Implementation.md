@@ -104,9 +104,9 @@ flowchart TB
 
 **What to borrow from your references:**
 
-- [SaleFlex.PyPOS](https://github.com/SaleFlex/SaleFlex.PyPOS) — folder layout, SQLAlchemy models, sale + inventory flow
 - [CIM](https://github.com/Sekiro19/CIM) — table filtering, sorting, colored low-stock rows
 - [PocketBiz](https://github.com/neesarg123/PocketBiz) — simple checkout UX (Excel import later in Phase 2; no sample list today)
+- [SaleFlex.PyPOS](https://github.com/SaleFlex/SaleFlex.PyPOS) — folder layout, SQLAlchemy models, sale + inventory flow
 - [Simple Inventory](https://github.com/ryanthackston/Simple-Inventory-Management-System-by-Barcode-Scanner) — scan-to-cart
 - [BarcodePOS](https://github.com/BeratARPA/BarcodePOS) — printer integration patterns (C#; conceptual)
 
