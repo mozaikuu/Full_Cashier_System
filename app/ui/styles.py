@@ -1,69 +1,73 @@
 STYLE = """
 QWidget {
-    background: #f1f4f3;
-    color: #1c2b2e;
+    background: #f5f7f6;
+    color: #203236;
     font-family: "Segoe UI", "Tahoma";
     font-size: 14px;
 }
-QMainWindow { background: #f1f4f3; }
-QStackedWidget { background: #f1f4f3; }
+QMainWindow { background: #f5f7f6; }
+QStackedWidget { background: #f5f7f6; }
 QListWidget {
-    background: #123f44;
-    color: #dceeed;
+    background: #163f43;
+    color: #d9e8e6;
     border: 0;
-    padding: 18px 10px;
-    min-width: 176px;
-    max-width: 210px;
+    padding: 22px 12px;
+    min-width: 190px;
+    max-width: 224px;
     outline: 0;
 }
 QListWidget::item {
-    min-height: 30px;
-    padding: 12px 14px;
-    margin: 3px 0;
-    border-radius: 6px;
+    min-height: 32px;
+    padding: 13px 15px;
+    margin: 4px 0;
+    border-radius: 7px;
 }
-QListWidget::item:hover { background: #1b5559; }
-QListWidget::item:selected { background: #e2a53b; color: #17252b; font-weight: 700; }
+QListWidget::item:hover { background: #20575a; }
+QListWidget::item:selected { background: #e5aa45; color: #193238; font-weight: 700; }
 QLabel#title {
     background: transparent;
-    color: #123f44;
-    font-size: 28px;
+    color: #163f43;
+    font-size: 27px;
     font-weight: 700;
-    padding: 6px 0 14px;
+    padding: 8px 0 16px;
 }
 QLabel#metric {
     background: #ffffff;
-    border: 1px solid #dce5e3;
-    border-top: 4px solid #e2a53b;
-    border-radius: 8px;
-    padding: 18px;
-    min-height: 58px;
-    font-size: 21px;
+    border: 1px solid #dce6e3;
+    border-top: 4px solid #e5aa45;
+    border-radius: 9px;
+    padding: 19px;
+    min-height: 62px;
+    font-size: 20px;
     font-weight: 700;
 }
 QPushButton {
-    background: #14777a;
+    background: #168083;
     color: #ffffff;
     border: 0;
-    border-radius: 6px;
-    padding: 10px 17px;
-    min-height: 24px;
+    border-radius: 7px;
+    padding: 11px 18px;
+    min-height: 25px;
     font-weight: 700;
 }
-QPushButton:hover { background: #0e5d60; }
-QPushButton:pressed { background: #094b4e; }
-QPushButton:focus, QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
-    border: 2px solid #e2a53b;
+QPushButton:hover { background: #116b6e; }
+QPushButton:pressed { background: #0b5558; }
+QPushButton:focus {
+    background: #116b6e;
+    border: 2px solid #e5aa45;
 }
 QPushButton#danger { background: #b3261e; }
 QPushButton#danger:hover { background: #8f1d18; }
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
     background: #ffffff;
-    border: 1px solid #c7d5d3;
-    border-radius: 6px;
+    border: 1px solid #c9d8d5;
+    border-radius: 7px;
     padding: 9px 10px;
     min-height: 24px;
-    selection-background-color: #14777a;
+    selection-background-color: #168083;
+}
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border: 2px solid #e5aa45;
 }
 QDoubleSpinBox { padding-right: 32px; }
 QDoubleSpinBox#paidAmount { padding-right: 10px; }
@@ -79,9 +83,9 @@ QTableWidget {
     background: #ffffff;
     alternate-background-color: #f5f9f8;
     border: 1px solid #d3dfdd;
-    border-radius: 6px;
+    border-radius: 8px;
     gridline-color: #e6eeec;
-    selection-background-color: #d9eeee;
+    selection-background-color: #d7eceb;
     selection-color: #143d40;
     outline: 0;
 }
@@ -98,12 +102,12 @@ QHeaderView::section {
 QFrame#productCard {
     background: #ffffff;
     border: 1px solid #d3dfdd;
-    border-radius: 8px;
-    padding: 10px;
+    border-radius: 9px;
+    padding: 12px;
 }
-QFrame#productCard:hover { border: 2px solid #14777a; }
-QLabel#cardTitle { color: #123f44; font-size: 17px; font-weight: 700; }
-QLabel#stockValue { color: #14777a; font-weight: 700; }
+QFrame#productCard:hover { border: 2px solid #168083; }
+QLabel#cardTitle { color: #163f43; font-size: 17px; font-weight: 700; }
+QLabel#stockValue { color: #168083; font-weight: 700; }
 QScrollArea { border: 0; background: transparent; }
-QMessageBox, QDialog { background: #f1f4f3; }
+QMessageBox, QDialog { background: #f5f7f6; }
 """
