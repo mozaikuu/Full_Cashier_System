@@ -244,7 +244,10 @@ class MainWindow(QMainWindow):
 
     def complete_sale(self):
         try:
-            sale, change = SaleService.checkout(self.cart_items, Decimal(str(self.cash.value())))
+            buyer_name, buyer_phone = self.ask_buyer_details()
+            if buyer_name is None:
+                return
+            sale, change = SaleService.checkout(self.cart_items, Decimal(str(self.cash.value())), buyer_name, buyer_phone)
             ReceiptPrinter().print_sale(sale)
             self.cart_items.clear()
             self.cash.setValue(0)
@@ -252,6 +255,31 @@ class MainWindow(QMainWindow):
             self.refresh_dashboard()
         except ValueError as error:
             QMessageBox.warning(self, "تعذر إتمام البيع", str(error))
+
+    def ask_buyer_details(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("بيانات المشتري (اختياري)")
+        dialog.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        form = QFormLayout(dialog)
+        name = QLineEdit()
+        name.setPlaceholderText("ممكن تسيبه فاضي")
+        phone = QLineEdit()
+        phone.setPlaceholderText("ممكن تسيبه فاضي")
+        name.returnPressed.connect(lambda: phone.setFocus() if name.text().strip() else dialog.accept())
+        phone.returnPressed.connect(dialog.accept)
+        form.addRow("اسم المشتري", name)
+        form.addRow("رقم الموبايل", phone)
+        save = QPushButton("حفظ ومتابعة")
+        save.clicked.connect(dialog.accept)
+        skip = QPushButton("تخطي")
+        skip.clicked.connect(dialog.accept)
+        actions = QHBoxLayout()
+        actions.addWidget(save)
+        actions.addWidget(skip)
+        form.addRow(actions)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None, None
+        return name.text(), phone.text()
 
     def products(self):
         widget, layout = self.page("المنتجات")
@@ -479,8 +507,8 @@ class MainWindow(QMainWindow):
     def sales(self):
         widget, layout = self.page("الفواتير")
         layout.addWidget(QLabel("هنا هتلاقي كل الفواتير. اختار فاتورة عشان تعرضها أو تعيد طباعتها أو تحذفها."))
-        self.sales_table = QTableWidget(0, 4)
-        self.sales_table.setHorizontalHeaderLabels(["#", "الفاتورة", "التاريخ", "الإجمالي"])
+        self.sales_table = QTableWidget(0, 6)
+        self.sales_table.setHorizontalHeaderLabels(["#", "الفاتورة", "التاريخ", "المشتري", "رقم الموبايل", "الإجمالي"])
         self.configure_table(self.sales_table)
         layout.addWidget(self.sales_table)
         actions = QHBoxLayout()
@@ -495,7 +523,7 @@ class MainWindow(QMainWindow):
         self.sales_table.setRowCount(0)
         for sale in sales:
             row = self.sales_table.rowCount(); self.sales_table.insertRow(row)
-            for column, value in enumerate((str(row + 1), f"#{sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M"), money(sale.total))): self.sales_table.setItem(row, column, QTableWidgetItem(str(value)))
+            for column, value in enumerate((str(row + 1), f"#{sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M"), sale.buyer_name or "-", sale.buyer_phone or "-", money(sale.total))): self.sales_table.setItem(row, column, QTableWidgetItem(str(value)))
             self.sales_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, sale.id)
 
     def selected_sale(self):
@@ -506,7 +534,12 @@ class MainWindow(QMainWindow):
         return next((sale for sale in SaleService.list_sales() if sale.id == sale_id), None)
 
     def sale_text(self, sale):
-        lines = [f"فاتورة رقم {sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M"), "-" * 28]
+        lines = [f"فاتورة رقم {sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M")]
+        if sale.buyer_name:
+            lines.append(f"المشتري: {sale.buyer_name}")
+        if sale.buyer_phone:
+            lines.append(f"الموبايل: {sale.buyer_phone}")
+        lines.append("-" * 28)
         for line in sale.lines:
             lines.append(f"{line.variant.product.name} | باركود {line.variant.barcode} | {line.qty} | {money(line.line_total)}")
         lines.append(f"الإجمالي: {money(sale.total)}")

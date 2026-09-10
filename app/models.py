@@ -75,6 +75,8 @@ class Sale(Base):
     payment_method: Mapped[str] = mapped_column(String(30), default="cash")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     store_id: Mapped[int] = mapped_column(default=1)
+    buyer_name: Mapped[str] = mapped_column(String(160), default="")
+    buyer_phone: Mapped[str] = mapped_column(String(40), default="")
     lines: Mapped[list["SaleLine"]] = relationship(cascade="all, delete-orphan")
 
 

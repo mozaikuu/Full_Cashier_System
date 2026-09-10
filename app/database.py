@@ -1,5 +1,5 @@
 from pathlib import Path
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -18,6 +18,12 @@ def init_db() -> None:
     DATA_DIR.mkdir(exist_ok=True)
     from app import models  # noqa: F401
     Base.metadata.create_all(engine)
+    columns = {column["name"] for column in inspect(engine).get_columns("sales")}
+    with engine.begin() as connection:
+        if "buyer_name" not in columns:
+            connection.execute(text("ALTER TABLE sales ADD COLUMN buyer_name VARCHAR(160) NOT NULL DEFAULT ''"))
+        if "buyer_phone" not in columns:
+            connection.execute(text("ALTER TABLE sales ADD COLUMN buyer_phone VARCHAR(40) NOT NULL DEFAULT ''"))
     with SessionLocal.begin() as session:
         defaults = {
             "store_name": "fyonka",

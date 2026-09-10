@@ -91,6 +91,17 @@ def test_admin_can_change_password_with_old_password():
     assert authenticate("5678")
 
 
+def test_buyer_details_are_saved_on_receipt():
+    CategoryService.save("زبائن")
+    category_id = CategoryService.list()[0].id
+    variant = ProductService.create("كيس", "", "", Decimal("3.00"), Decimal("0"), 2, 1, category_id)
+    sale, _ = SaleService.checkout({variant.id: 1}, Decimal("3.00"), "أحمد", "01000000000")
+    saved = SaleService.list_sales()[0]
+    assert saved.id == sale.id
+    assert saved.buyer_name == "أحمد"
+    assert saved.buyer_phone == "01000000000"
+
+
 def test_low_stock_excludes_inactive_products_and_zero_reorder_levels():
     CategoryService.save("اختبار")
     category_id = CategoryService.list()[0].id

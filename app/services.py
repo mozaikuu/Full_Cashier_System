@@ -194,7 +194,7 @@ class SaleService:
             sale.total = total
 
     @staticmethod
-    def checkout(items: dict[int, int], cash_received: Decimal) -> tuple[Sale, Decimal]:
+    def checkout(items: dict[int, int], cash_received: Decimal, buyer_name: str = "", buyer_phone: str = "") -> tuple[Sale, Decimal]:
         with SessionLocal.begin() as session:
             if not items or any(quantity <= 0 for quantity in items.values()):
                 raise ValueError("سلة المشتريات فارغة")
@@ -203,7 +203,7 @@ class SaleService:
                 raise ValueError("الصنف غير موجود")
             if any(variants[key].stock_qty < qty for key, qty in items.items()):
                 raise ValueError("المخزون غير كافٍ")
-            sale = Sale(payment_method="cash")
+            sale = Sale(payment_method="cash", buyer_name=buyer_name.strip(), buyer_phone=buyer_phone.strip())
             total = Decimal("0")
             session.add(sale)
             session.flush()
