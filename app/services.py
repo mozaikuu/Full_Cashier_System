@@ -132,6 +132,16 @@ class ProductService:
 
 class InventoryService:
     @staticmethod
+    def set_reorder_level(variant_id: int, reorder_level: int):
+        if reorder_level < 0:
+            raise ValueError("حد الطلب مينفعش يكون بالسالب")
+        with SessionLocal.begin() as session:
+            variant = session.get(Variant, variant_id)
+            if not variant:
+                raise ValueError("الصنف غير موجود")
+            variant.reorder_level = reorder_level
+
+    @staticmethod
     def adjust(variant_id: int, quantity: int, reason: str):
         with SessionLocal.begin() as session:
             variant = session.get(Variant, variant_id)

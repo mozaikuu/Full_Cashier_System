@@ -54,7 +54,7 @@ class Variant(Base):
     stock_qty: Mapped[int] = mapped_column(default=0)
     reorder_level: Mapped[int] = mapped_column(default=0)
     attributes_json: Mapped[str] = mapped_column(Text, default="{}")
-    product: Mapped[Product] = relationship()
+    product: Mapped[Product] = relationship(lazy="joined")
 
 
 class StockMovement(Base):

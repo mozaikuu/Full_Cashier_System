@@ -472,9 +472,11 @@ class MainWindow(QMainWindow):
 
     def update_product(self):
         variant = self.selected_variant()
-        if not variant: return
+        if not variant or self.selected_product_id is None:
+            QMessageBox.warning(self, "اختار صنف", "اختار الصنف من الجدول الأول قبل التعديل.")
+            return
         try:
-            ProductService.update(variant.product_id, self.p_name.text(), self.p_sku.text(), self.p_barcode.text(), Decimal(str(self.p_price.value())), Decimal(str(self.p_cost.value())), self.p_stock.value(), self.p_reorder.value(), self.selected_category_ids())
+            ProductService.update(self.selected_product_id, self.p_name.text(), self.p_sku.text(), self.p_barcode.text(), Decimal(str(self.p_price.value())), Decimal(str(self.p_cost.value())), self.p_stock.value(), self.p_reorder.value(), self.selected_category_ids())
             self.refresh_products(); self.refresh_inventory(); self.refresh_dashboard(); QMessageBox.information(self, "تم التحديث", "تم تحديث المنتج.")
         except Exception as error: QMessageBox.warning(self, "تعذر التحديث", str(error))
 
@@ -553,7 +555,8 @@ class MainWindow(QMainWindow):
         widget, layout = self.page("المخزون")
         layout.addWidget(QLabel("اختار صنف. تقدر تغيّر رقم المخزون في الجدول وتضغط Enter، أو استخدم خانة الكمية تحت الجدول."))
         self.inventory_table = QTableWidget(0, 5)
-        self.inventory_table.setHorizontalHeaderLabels(["#", "الصنف", "الباركود", "المخزون (اضغط Enter بعد التعديل)", "حد الطلب"])
+        self.inventory_table.setHorizontalHeaderLabels(["#", "الصنف", "الباركود", "المخزون (Enter للتعديل)", "حد الطلب (Enter للتعديل)"])
+        self.inventory_table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed)
         self.inventory_table.cellChanged.connect(self.inventory_cell_changed)
         self.configure_table(self.inventory_table)
         layout.addWidget(self.inventory_table)
@@ -570,17 +573,24 @@ class MainWindow(QMainWindow):
         self.inventory_table.setRowCount(0)
         for variant in ProductService.search():
             row = self.inventory_table.rowCount(); self.inventory_table.insertRow(row)
-            for column, value in enumerate((str(row + 1), variant.product.name, variant.barcode or "", variant.stock_qty, variant.reorder_level)): self.inventory_table.setItem(row, column, QTableWidgetItem(str(value)))
+            for column, value in enumerate((str(row + 1), variant.product.name, variant.barcode or "", variant.stock_qty, variant.reorder_level)):
+                item = QTableWidgetItem(str(value))
+                if column not in (3, 4):
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.inventory_table.setItem(row, column, item)
             self.inventory_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, variant.id)
         self.inventory_table.blockSignals(False)
 
     def inventory_cell_changed(self, row, column):
-        if column != 3 or not self.inventory_table.item(row, 0):
+        if column not in (3, 4) or not self.inventory_table.item(row, 0):
             return
         try:
             variant_id = int(self.inventory_table.item(row, 0).data(Qt.ItemDataRole.UserRole))
-            quantity = int(self.inventory_table.item(row, column).text())
-            InventoryService.adjust(variant_id, quantity, "adjustment")
+            value = int(self.inventory_table.item(row, column).text())
+            if column == 3:
+                InventoryService.adjust(variant_id, value, "adjustment")
+            else:
+                InventoryService.set_reorder_level(variant_id, value)
             self.refresh_inventory()
             self.refresh_products()
             self.refresh_dashboard()
