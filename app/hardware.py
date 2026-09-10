@@ -19,7 +19,19 @@ class ReceiptPrinter:
         for line in sale.lines:
             lines.append(f"{line.variant.product.name[:18]:18} {line.qty:>3} {money(line.line_total):>12}")
             lines.append(f"باركود: {line.variant.barcode}")
-        lines += ["-" * 32, f"الإجمالي {money(sale.total):>20}", f"فاتورة: SALE-{sale.id:08d}", "نقداً", "ممنوع المرتجع", "شكراً لزيارتكم"]
+        lines += [
+            "-" * 32,
+            f"الإجمالي {money(sale.total):>20}",
+            f"المدفوع {money(getattr(sale, 'paid_amount', 0)):>21}",
+            f"الباقي {money(getattr(sale, 'change_amount', 0)):>22}",
+            f"فاتورة: SALE-{sale.id:08d}",
+            "الدفع:",
+        ]
+        if values.get("instapay_number", "").strip():
+            lines.append(f"InstaPay: {values['instapay_number'].strip()}")
+        if values.get("vodafone_cash_number", "").strip():
+            lines.append(f"Vodafone Cash: {values['vodafone_cash_number'].strip()}")
+        lines += ["نقداً", "ممنوع المرتجع", "شكراً لزيارتكم"]
         return "\n".join(lines)
 
     def print_sale(self, sale) -> None:

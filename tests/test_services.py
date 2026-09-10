@@ -21,6 +21,8 @@ def test_sale_reduces_stock_and_records_total():
     variant = ProductService.search("123")[0]
     sale, change = SaleService.checkout({variant.id: 2}, Decimal("25.00"))
     assert sale.total == Decimal("21.00")
+    assert sale.paid_amount == Decimal("25.00")
+    assert sale.change_amount == Decimal("4.00")
     assert change == Decimal("4.00")
     assert ProductService.search("123")[0].stock_qty == 3
 

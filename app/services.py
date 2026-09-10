@@ -200,7 +200,9 @@ class SaleService:
             sale.total = total
             if cash_received < total:
                 raise ValueError(f"المبلغ المدفوع أقل من الإجمالي: {money(total)}")
-            return sale, cash_received - total
+            sale.paid_amount = cash_received
+            sale.change_amount = cash_received - total
+            return sale, sale.change_amount
 
 
 class ReportService:

@@ -66,6 +66,8 @@ class Sale(Base):
     __tablename__ = "sales"
     id: Mapped[int] = mapped_column(primary_key=True)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
+    change_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     payment_method: Mapped[str] = mapped_column(String(30), default="cash")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=local_now)
     store_id: Mapped[int] = mapped_column(default=1)

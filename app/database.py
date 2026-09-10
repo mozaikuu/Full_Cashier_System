@@ -32,11 +32,17 @@ def init_db() -> None:
             connection.execute(text("ALTER TABLE sales ADD COLUMN archived BOOLEAN NOT NULL DEFAULT 0"))
         if "stock_restored" not in columns:
             connection.execute(text("ALTER TABLE sales ADD COLUMN stock_restored BOOLEAN NOT NULL DEFAULT 0"))
+        if "paid_amount" not in columns:
+            connection.execute(text("ALTER TABLE sales ADD COLUMN paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0"))
+        if "change_amount" not in columns:
+            connection.execute(text("ALTER TABLE sales ADD COLUMN change_amount NUMERIC(12, 2) NOT NULL DEFAULT 0"))
     with SessionLocal.begin() as session:
         defaults = {
             "store_name": "fyonka",
             "store_address": "baltim",
             "store_phone": "01201538851",
+            "instapay_number": "",
+            "vodafone_cash_number": "",
             "currency": "EGP",
             "tax_rate": "0",
             "receipt_printer": "",

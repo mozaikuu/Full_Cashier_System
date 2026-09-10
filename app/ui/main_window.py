@@ -789,6 +789,8 @@ class MainWindow(QMainWindow):
         for line in sale.lines:
             lines.append(f"{line.variant.product.name} | باركود {line.variant.barcode} | {line.qty} | {money(line.line_total)}")
         lines.append(f"الإجمالي: {money(sale.total)}")
+        lines.append(f"المدفوع: {money(getattr(sale, 'paid_amount', 0))}")
+        lines.append(f"الباقي: {money(getattr(sale, 'change_amount', 0))}")
         return "\n".join(lines)
 
     def view_selected_sale(self):
@@ -864,7 +866,7 @@ class MainWindow(QMainWindow):
         widget, layout = self.page("الإعدادات")
         layout.addWidget(QLabel("للطباعة: اكتب اسم الطابعة زي ما ظاهر في إعدادات Windows، احفظ، وبعدها دوس اختبار."))
         values = settings(); self.setting_fields = {}; form = QFormLayout()
-        for key, label in (("store_name", "اسم المتجر"), ("store_address", "الموقع / العنوان"), ("store_phone", "رقم الهاتف"), ("receipt_printer", "طابعة الإيصالات"), ("label_printer", "طابعة الملصقات")):
+        for key, label in (("store_name", "اسم المتجر"), ("store_address", "الموقع / العنوان"), ("store_phone", "رقم الهاتف"), ("instapay_number", "رقم InstaPay"), ("vodafone_cash_number", "رقم محفظة Vodafone Cash"), ("receipt_printer", "طابعة الإيصالات"), ("label_printer", "طابعة الملصقات")):
             field = QLineEdit(values.get(key, "")); self.setting_fields[key] = field; form.addRow(label, field)
         save = QPushButton("احفظ الإعدادات"); save.clicked.connect(self.save_settings); receipt = QPushButton("اطبع إيصال تجريبي"); receipt.clicked.connect(self.test_receipt); label = QPushButton("اطبع باركود تجريبي"); label.clicked.connect(self.test_label)
         password = QPushButton("غيّر كلمة السر"); password.clicked.connect(self.change_admin_password)
