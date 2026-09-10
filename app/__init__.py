@@ -1,1 +1,1 @@
-"""Sandy Cashier application package."""
+"""Moussa Cashier application package."""

@@ -5,7 +5,7 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 DATA_DIR = APP_DIR / "data"
-DATABASE_URL = f"sqlite:///{DATA_DIR / 'sandy_cashier.db'}"
+DATABASE_URL = f"sqlite:///{DATA_DIR / 'moussa_cashier.db'}"
 
 
 class Base(DeclarativeBase):

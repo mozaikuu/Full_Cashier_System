@@ -27,7 +27,7 @@ class ReceiptPrinter:
                 import win32print
                 handle = win32print.OpenPrinter(printer_name)
                 try:
-                    win32print.StartDocPrinter(handle, 1, ("Sandy Cashier", None, "RAW"))
+                    win32print.StartDocPrinter(handle, 1, ("Moussa Cashier", None, "RAW"))
                     win32print.StartPagePrinter(handle)
                     win32print.WritePrinter(handle, text.encode("cp1256", errors="replace"))
                     win32print.EndPagePrinter(handle)
@@ -57,7 +57,7 @@ class LabelPrinter:
                 import win32print
                 handle = win32print.OpenPrinter(printer_name)
                 try:
-                    win32print.StartDocPrinter(handle, 1, ("Sandy Cashier Label", None, "RAW"))
+                    win32print.StartDocPrinter(handle, 1, ("Moussa Cashier Label", None, "RAW"))
                     win32print.StartPagePrinter(handle)
                     win32print.WritePrinter(handle, command.encode("cp1256", errors="replace"))
                     win32print.EndPagePrinter(handle)

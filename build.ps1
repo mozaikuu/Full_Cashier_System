@@ -8,4 +8,4 @@ if (-not (Test-Path ".venv\Scripts\python.exe")) {
 & ".venv\Scripts\python.exe" -m pip install -r requirements.txt
 & ".venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean build.spec
 
-Write-Host "Build complete: dist\SandyCashier\SandyCashier.exe"
+Write-Host "Build complete: dist\MoussaCashier\MoussaCashier.exe"

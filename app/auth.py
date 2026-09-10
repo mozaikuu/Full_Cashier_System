@@ -5,7 +5,7 @@ from app.database import SessionLocal
 from app.models import Setting
 
 DEFAULT_PASSWORD = "1234"
-DEFAULT_RECOVERY_CODE = "SANDY-RESET"
+DEFAULT_RECOVERY_CODE = "MOUSSA-RESET"
 
 
 def _hash_password(password: str, salt: str | None = None) -> str:

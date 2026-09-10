@@ -1,9 +1,9 @@
 ---
-name: Sandy Cashier Store System
-overview: Build Sandy Cashier as a Windows desktop POS + inventory app (Python/PySide6, SQLite) packaged as a .exe. Single till, EGP with no tax, no returns. Hardware is Xprinter XP-Q80AS (receipts) and XP-233B (labels).
+name: Moussa Cashier Store System
+overview: Build Moussa Cashier as a Windows desktop POS + inventory app (Python/PySide6, SQLite) packaged as a .exe. Single till, EGP with no tax, no returns. Hardware is Xprinter XP-Q80AS (receipts) and XP-233B (labels).
 todos:
    - id: scaffold-project
-     content: "Scaffold Sandy_Cashier: PySide6 app shell, requirements.txt, folder layout, shared theme/stylesheet"
+     content: "Scaffold Moussa_Cashier: PySide6 app shell, requirements.txt, folder layout, shared theme/stylesheet"
      status: pending
    - id: data-model
      content: "Implement SQLAlchemy models: categories, subcategories, product_category_links (many-to-many), products, variants, stock_movements, sales, settings (store_id placeholder, EGP, no tax, receipt header defaults)"
@@ -32,7 +32,7 @@ todos:
 isProject: false
 ---
 
-# Sandy Cashier — Store System Plan
+# Moussa Cashier — Store System Plan
 
 ## What you are building
 
@@ -119,7 +119,7 @@ flowchart TB
 - **Barcode generation:** `python-barcode` + Pillow
 - **Receipts:** `python-escpos` targeting XP-Q80AS (USB)
 - **Labels:** TSPL commands (or Windows spooler via vendor driver) targeting XP-233B
-- **Packaging:** PyInstaller `--onedir` → `SandyCashier.exe`
+- **Packaging:** PyInstaller `--onedir` → `MoussaCashier.exe`
 - **Reports/export:** `openpyxl` (Phase 2)
 
 ---
@@ -242,14 +242,14 @@ Header fields come from Settings so the temporary name/address/phone can be chan
 
 ## Project structure
 
-Greenfield in [Sandy_Cashier](d:\0_code\Sandy_Cashier):
+Greenfield in [Moussa_Cashier](d:\0_code\Moussa_Cashier):
 
 ```
-Sandy_Cashier/
+Moussa_Cashier/
 ├── main.py
 ├── requirements.txt
 ├── build.spec
-├── data/sandy_cashier.db
+├── data/moussa_cashier.db
 ├── app/ui, services, repositories, models, hardware, utils
 └── assets/
 ```
@@ -261,7 +261,7 @@ Sandy_Cashier/
 1. Develop with `python main.py`
 2. PyInstaller `--onedir`
 3. Zip the folder for the store PC (no Python install)
-4. Backup: Settings → Export backup / Open data folder (`sandy_cashier.db`)
+4. Backup: Settings → Export backup / Open data folder (`moussa_cashier.db`)
 
 ---
 
