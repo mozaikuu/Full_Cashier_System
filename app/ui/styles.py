@@ -3,6 +3,8 @@ QWidget { background: #f5f7f8; color: #17252b; font-family: "Segoe UI", "Tahoma"
 QMainWindow { background: #f5f7f8; }
 QPushButton { background: #126e70; color: white; border: 0; border-radius: 5px; padding: 11px 16px; min-height: 22px; font-weight: 600; }
 QPushButton:hover { background: #0d585a; }
+QPushButton#danger { background: #b3261e; }
+QPushButton#danger:hover { background: #8f1d18; }
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox { background: white; border: 1px solid #c9d5d6; border-radius: 4px; padding: 8px; min-height: 22px; }
 QDoubleSpinBox { padding-right: 30px; }
 QAbstractSpinBox::up-button, QAbstractSpinBox::down-button { width: 24px; min-height: 14px; subcontrol-origin: border; border-left: 1px solid #c9d5d6; }

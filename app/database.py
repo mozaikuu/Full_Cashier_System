@@ -31,3 +31,11 @@ def init_db() -> None:
         for key, value in defaults.items():
             if session.get(models.Setting, key) is None:
                 session.add(models.Setting(key=key, value=value))
+
+
+def factory_reset() -> None:
+    from app import models
+
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    init_db()

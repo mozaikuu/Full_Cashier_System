@@ -37,6 +37,14 @@ def authenticate(password: str) -> bool:
         return bool(setting and _matches(password, setting.value))
 
 
+def change_password(old_password: str, new_password: str) -> bool:
+    if len(new_password) < 4 or not authenticate(old_password):
+        return False
+    with SessionLocal.begin() as session:
+        session.merge(Setting(key="admin_password_hash", value=_hash_password(new_password)))
+        return True
+
+
 def reset_password(recovery_code: str, new_password: str) -> bool:
     if len(new_password) < 4:
         return False

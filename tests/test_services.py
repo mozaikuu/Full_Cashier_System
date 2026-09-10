@@ -1,5 +1,6 @@
 from decimal import Decimal
 from app.database import Base, engine
+from app.auth import authenticate, change_password, initialize_auth
 from app.services import CategoryService, InventoryService, ProductService, ReportService, SaleService
 
 
@@ -68,6 +69,26 @@ def test_product_edit_updates_quantity():
     updated = ProductService.search(variant.barcode)[0]
     assert updated.product.name == "قلم أزرق"
     assert updated.stock_qty == 9
+
+
+def test_receipt_delete_restores_stock():
+    CategoryService.save("مخبوزات")
+    category_id = CategoryService.list()[0].id
+    variant = ProductService.create("عيش", "", "", Decimal("4.00"), Decimal("0"), 5, 1, category_id)
+    sale, _ = SaleService.checkout({variant.id: 2}, Decimal("10.00"))
+    SaleService.update_sale_quantities(sale.id, {sale.lines[0].id: 3})
+    edited = SaleService.list_sales()[0]
+    assert edited.total == Decimal("12.00")
+    assert ProductService.search(variant.barcode)[0].stock_qty == 2
+    SaleService.delete_sale(sale.id)
+    assert ProductService.search(variant.barcode)[0].stock_qty == 5
+
+
+def test_admin_can_change_password_with_old_password():
+    initialize_auth()
+    assert authenticate("1234")
+    assert change_password("1234", "5678")
+    assert authenticate("5678")
 
 
 def test_low_stock_excludes_inactive_products_and_zero_reorder_levels():
