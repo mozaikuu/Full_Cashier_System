@@ -644,10 +644,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(QLabel("هنا هتلاقي كل الفواتير. اختار فاتورة عشان تعرضها أو تعدّل كمياتها أو تعيد طباعتها. الحذف بيمسح السجل بس ومش بيرجع فلوس أو مخزون."))
         self.sales_table = QTableWidget(0, 6)
         self.sales_table.setHorizontalHeaderLabels(["#", "الفاتورة", "التاريخ", "المشتري", "رقم الموبايل", "الإجمالي"])
+        self.sales_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.configure_table(self.sales_table)
         layout.addWidget(self.sales_table)
         actions = QHBoxLayout()
-        for text, callback in (("اعرض الفاتورة", self.view_selected_sale), ("عدّل الكميات", self.edit_selected_sale), ("إعادة طباعة", self.reprint_selected_sale), ("احذف الفاتورة", self.delete_selected_sale)):
+        for text, callback in (("اعرض الفاتورة", self.view_selected_sale), ("إعادة طباعة", self.reprint_selected_sale), ("احذف الفاتورة", self.delete_selected_sale)):
             button = QPushButton(text); button.clicked.connect(callback); actions.addWidget(button)
         layout.addLayout(actions)
         self.refresh_sales()
@@ -689,35 +690,6 @@ class MainWindow(QMainWindow):
         sale = self.selected_sale()
         if sale:
             ReceiptPrinter().print_sale(sale)
-
-    def edit_selected_sale(self):
-        sale = self.selected_sale()
-        if not sale:
-            return
-        dialog = QDialog(self)
-        dialog.setWindowTitle("تعديل كميات الفاتورة")
-        dialog.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-        form = QFormLayout(dialog)
-        fields = {}
-        for line in sale.lines:
-            field = QSpinBox()
-            field.setRange(1, 999999)
-            field.setValue(line.qty)
-            fields[line.id] = field
-            form.addRow(f"{line.variant.product.name} ({line.variant.barcode})", field)
-        save = QPushButton("احفظ تعديل الفاتورة")
-        save.clicked.connect(dialog.accept)
-        form.addRow(save)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        try:
-            SaleService.update_sale_quantities(sale.id, {line_id: field.value() for line_id, field in fields.items()})
-            self.refresh_sales()
-            self.refresh_inventory()
-            self.refresh_products()
-            self.refresh_dashboard()
-        except ValueError as error:
-            QMessageBox.warning(self, "تعذر تعديل الفاتورة", str(error))
 
     def delete_selected_sale(self):
         sale = self.selected_sale()

@@ -13,7 +13,7 @@ class ReceiptPrinter:
         for line in sale.lines:
             lines.append(f"{line.variant.product.name[:18]:18} {line.qty:>3} {money(line.line_total):>12}")
             lines.append(f"باركود: {line.variant.barcode}")
-        lines += ["-" * 32, f"الإجمالي {money(sale.total):>20}", "نقداً", "شكراً لزيارتكم"]
+        lines += ["-" * 32, f"الإجمالي {money(sale.total):>20}", "نقداً", "ممنوع المرتجع", "شكراً لزيارتكم"]
         self._send("\n".join(lines) + "\n\n\x1dV\x00", values.get("receipt_printer", ""))
 
     def test(self) -> None:

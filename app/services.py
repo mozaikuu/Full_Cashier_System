@@ -178,29 +178,6 @@ class SaleService:
             session.delete(sale)
 
     @staticmethod
-    def update_sale_quantities(sale_id: int, quantities: dict[int, int]):
-        with SessionLocal.begin() as session:
-            sale = session.get(Sale, sale_id)
-            if not sale:
-                raise ValueError("الفاتورة مش موجودة")
-            total = Decimal("0")
-            for line in sale.lines:
-                new_quantity = quantities.get(line.id, line.qty)
-                if new_quantity <= 0:
-                    raise ValueError("كمية الفاتورة لازم تكون أكبر من صفر")
-                variant = session.get(Variant, line.variant_id)
-                delta = new_quantity - line.qty
-                if delta > variant.stock_qty:
-                    raise ValueError("المخزون الحالي مش كفاية لتزويد الكمية")
-                if delta:
-                    variant.stock_qty -= delta
-                    session.add(StockMovement(variant_id=variant.id, qty_change=-delta, reason="receipt_edited", reference_id=str(sale_id)))
-                line.qty = new_quantity
-                line.line_total = Decimal(line.unit_price) * new_quantity
-                total += line.line_total
-            sale.total = total
-
-    @staticmethod
     def checkout(items: dict[int, int], cash_received: Decimal, buyer_name: str = "", buyer_phone: str = "") -> tuple[Sale, Decimal]:
         with SessionLocal.begin() as session:
             if not items or any(quantity <= 0 for quantity in items.values()):
