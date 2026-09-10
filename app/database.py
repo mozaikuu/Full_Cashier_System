@@ -35,6 +35,7 @@ def init_db() -> None:
             "tax_rate": "0",
             "receipt_printer": "",
             "label_printer": "",
+            "language": "ar",
         }
         for key, value in defaults.items():
             if session.get(models.Setting, key) is None:

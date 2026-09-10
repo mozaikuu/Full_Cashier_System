@@ -16,12 +16,14 @@ from app.database import factory_reset
 from app.hardware import LabelPrinter, ReceiptPrinter
 from app.models import Category, Sale, Setting, Variant
 from app.services import CategoryService, InventoryService, ProductService, ReportService, SaleService, money, save_settings, settings
+from app.ui.i18n import ENGLISH, apply_language, translate
 from app.ui.styles import STYLE
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.language = settings().get("language", "ar")
         self.setWindowTitle("صندوق سَندي")
         self.resize(1200, 760)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -41,6 +43,38 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.stack, 5)
         layout.addWidget(self.nav, 1)
         self.setCentralWidget(shell)
+        self.apply_language()
+
+    def apply_language(self):
+        apply_language(self, self.language)
+        self.refresh_dashboard()
+        self.refresh_cart()
+
+    def change_language(self, language):
+        self.language = language
+        save_settings({"language": language})
+        self.apply_language()
+
+    def tr(self, text):
+        return translate(text, self.language)
+
+    def warning(self, title, message):
+        return QMessageBox.warning(self, self.tr(title), self.tr(message))
+
+    def error_text(self, error):
+        return self.tr(str(error))
+
+    def information(self, title, message):
+        return QMessageBox.information(self, self.tr(title), self.tr(message))
+
+    def question(self, title, message):
+        return QMessageBox.question(self, self.tr(title), self.tr(message))
+
+    def input_text(self, title, message, mode=QLineEdit.EchoMode.Normal):
+        return QInputDialog.getText(self, self.tr(title), self.tr(message), mode)
+
+    def input_int(self, title, message, value, minimum, maximum):
+        return QInputDialog.getInt(self, self.tr(title), self.tr(message), value, minimum, maximum)
 
     def change_page(self, index):
         self.stack.setCurrentIndex(index)
@@ -115,7 +149,7 @@ class MainWindow(QMainWindow):
         total, count, low = ReportService.today()
         values = {"total": money(total), "count": str(count), "low": str(low)}
         for key, (label, metric) in self.dashboard_metrics.items():
-            metric.setText(f"{label}\n{values[key]}")
+            metric.setText(f"{translate(label, self.language)}\n{values[key]}")
         self.low_stock_table.setRowCount(0)
         for variant in ReportService.low_stock():
             row = self.low_stock_table.rowCount()
@@ -150,7 +184,7 @@ class MainWindow(QMainWindow):
         cart_actions.addStretch()
         layout.addLayout(cart_actions)
         footer = QHBoxLayout()
-        self.total_label = QLabel("الإجمالي  EGP 0.00")
+        self.total_label = QLabel(f"{self.tr('الإجمالي')}  {self.tr('جنيه')} 0.00")
         self.total_label.setObjectName("title")
         self.cash = QDoubleSpinBox()
         self.cash.setMaximum(999999999)
@@ -160,11 +194,11 @@ class MainWindow(QMainWindow):
         self.cash.setMinimumWidth(190)
         self.cash.setObjectName("paidAmount")
         self.cash.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
-        self.cash.setSuffix(" جنيه")
+        self.cash.setSuffix(f" {self.tr('جنيه')}")
         self.cash.lineEdit().setPlaceholderText("اكتب المبلغ المدفوع")
         self.cash.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cash.valueChanged.connect(self.update_change)
-        self.change_label = QLabel("الباقي 0.00 جنيه")
+        self.change_label = QLabel(self.tr("الباقي 0.00 جنيه"))
         pay = QPushButton("بيع نقدي")
         pay.clicked.connect(self.complete_sale)
         for item in (self.total_label, QLabel("المبلغ المدفوع"), self.cash, self.change_label, pay):
@@ -218,7 +252,7 @@ class MainWindow(QMainWindow):
         quantity = int(match.group(2)) if match else 1
         matches = ProductService.search(barcode)
         if not matches:
-            QMessageBox.warning(self, "غير موجود", "لا يوجد صنف نشط بهذا الباركود.")
+            self.warning("غير موجود", "لا يوجد صنف نشط بهذا الباركود.")
             self.scan.setFocus()
             return
         variant = matches[0]
@@ -263,12 +297,13 @@ class MainWindow(QMainWindow):
                 for column, value in enumerate((str(row + 1), variant.product.name, quantity, money(line_total))):
                     self.cart.setItem(row, column, QTableWidgetItem(str(value)))
             self.cart.blockSignals(False)
-        self.total_label.setText(f"الإجمالي  {money(self.cart_total())}")
+        self.total_label.setText(f"{translate('الإجمالي', self.language)}  {money(self.cart_total())}")
         self.update_change()
 
     def update_change(self):
         change = max(Decimal("0"), Decimal(str(self.cash.value())) - self.cart_total())
-        self.change_label.setText(f"الباقي {change:,.2f} جنيه")
+        change_label = translate("الباقي 0.00 جنيه", self.language).replace("0.00", f"{change:,.2f}")
+        self.change_label.setText(change_label)
 
     def complete_sale(self):
         try:
@@ -283,7 +318,7 @@ class MainWindow(QMainWindow):
             self.refresh_sales()
             self.refresh_dashboard()
         except ValueError as error:
-            QMessageBox.warning(self, "تعذر إتمام البيع", str(error))
+            self.warning("تعذر إتمام البيع", self.error_text(error))
 
     def ask_buyer_details(self):
         dialog = QDialog(self)
@@ -306,6 +341,7 @@ class MainWindow(QMainWindow):
         actions.addWidget(save)
         actions.addWidget(skip)
         form.addRow(actions)
+        apply_language(dialog, self.language)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None, None
         return name.text(), phone.text()
@@ -334,8 +370,8 @@ class MainWindow(QMainWindow):
         layout.addLayout(barcode_scan_row)
         form = QFormLayout()
         self.p_name, self.p_sku, self.p_barcode = QLineEdit(), QLineEdit(), QLineEdit()
-        self.p_price = QDoubleSpinBox(); self.p_price.setMaximum(999999); self.p_price.setSuffix(" جنيه")
-        self.p_cost = QDoubleSpinBox(); self.p_cost.setMaximum(999999); self.p_cost.setSuffix(" جنيه")
+        self.p_price = QDoubleSpinBox(); self.p_price.setMaximum(999999); self.p_price.setSuffix(f" {self.tr('جنيه')}")
+        self.p_cost = QDoubleSpinBox(); self.p_cost.setMaximum(999999); self.p_cost.setSuffix(f" {self.tr('جنيه')}")
         self.p_stock = QSpinBox(); self.p_stock.setMaximum(999999)
         self.p_reorder = QSpinBox(); self.p_reorder.setMaximum(999999)
         self.p_categories = QPushButton("اختار الأقسام")
@@ -447,7 +483,7 @@ class MainWindow(QMainWindow):
                     self.product_table.selectRow(row)
                     break
             self.product_barcode_scan.clear()
-            QMessageBox.information(self, "الصنف موجود", "الباركود ده مرتبط بصنف موجود واتحدد في الجدول.")
+            self.information("الصنف موجود", "الباركود ده مرتبط بصنف موجود واتحدد في الجدول.")
             return
         self.p_barcode.setText(barcode)
         self.product_barcode_scan.clear()
@@ -486,14 +522,14 @@ class MainWindow(QMainWindow):
     def add_product(self):
         category_ids = self.selected_category_ids()
         if not self.p_name.text().strip() or not category_ids:
-            QMessageBox.warning(self, "بيانات ناقصة", "اكتب اسم الصنف واختار قسم واحد على الأقل.")
+            self.warning("بيانات ناقصة", "اكتب اسم الصنف واختار قسم واحد على الأقل.")
             return
         try:
             variant = ProductService.create(self.p_name.text(), self.p_sku.text(), self.p_barcode.text(), Decimal(str(self.p_price.value())), Decimal(str(self.p_cost.value())), self.p_stock.value(), self.p_reorder.value(), category_ids[0])
             ProductService.update(variant.product_id, self.p_name.text(), variant.sku, variant.barcode, Decimal(str(self.p_price.value())), Decimal(str(self.p_cost.value())), self.p_stock.value(), self.p_reorder.value(), category_ids)
-            self.refresh_products(); self.refresh_inventory(); self.refresh_dashboard(); self.clear_product_form(); QMessageBox.information(self, "تم الحفظ", "تمت إضافة المنتج.")
+            self.refresh_products(); self.refresh_inventory(); self.refresh_dashboard(); self.clear_product_form(); self.information("تم الحفظ", "تمت إضافة المنتج.")
         except Exception as error:
-            QMessageBox.warning(self, "تعذر الحفظ", str(error))
+            self.warning("تعذر الحفظ", str(error))
 
     def selected_variant(self):
         row = self.product_table.currentRow()
@@ -513,24 +549,24 @@ class MainWindow(QMainWindow):
     def update_product(self):
         variant = self.selected_variant()
         if not variant or self.selected_product_id is None:
-            QMessageBox.warning(self, "اختار صنف", "اختار الصنف من الجدول الأول قبل التعديل.")
+            self.warning("اختار صنف", "اختار الصنف من الجدول الأول قبل التعديل.")
             return
         try:
             ProductService.update(self.selected_product_id, self.p_name.text(), self.p_sku.text(), self.p_barcode.text(), Decimal(str(self.p_price.value())), Decimal(str(self.p_cost.value())), self.p_stock.value(), self.p_reorder.value(), self.selected_category_ids())
-            self.refresh_products(); self.refresh_inventory(); self.refresh_dashboard(); QMessageBox.information(self, "تم التحديث", "تم تحديث المنتج.")
-        except Exception as error: QMessageBox.warning(self, "تعذر التحديث", str(error))
+            self.refresh_products(); self.refresh_inventory(); self.refresh_dashboard(); self.information("تم التحديث", "تم تحديث المنتج.")
+        except Exception as error: self.warning("تعذر التحديث", str(error))
 
     def delete_product(self):
         variant = self.selected_variant()
-        if not variant or QMessageBox.question(self, "تأكيد الحذف", "هل تريد حذف المنتج المحدد؟") != QMessageBox.StandardButton.Yes: return
+        if not variant or self.question("تأكيد الحذف", "هل تريد حذف المنتج المحدد؟") != QMessageBox.StandardButton.Yes: return
         ProductService.delete(variant.product_id); self.refresh_products(); self.refresh_inventory(); self.refresh_dashboard(); self.clear_product_form()
 
     def print_selected_label(self):
         variant = self.selected_variant()
         if not variant:
-            QMessageBox.warning(self, "اختار صنف", "اختار الصنف من الجدول الأول.")
+            self.warning("اختار صنف", "اختار الصنف من الجدول الأول.")
             return
-        copies, accepted = QInputDialog.getInt(self, "عدد الباركود", "عايز تطبع كام باركود؟", 1, 1, 999)
+        copies, accepted = self.input_int("عدد الباركود", "عايز تطبع كام باركود؟", 1, 1, 999)
         if not accepted:
             return
         LabelPrinter().print_label(variant, copies)
@@ -561,6 +597,7 @@ class MainWindow(QMainWindow):
         preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
         layout.addWidget(preview)
+        apply_language(dialog, self.language)
         dialog.adjustSize()
         self.barcode_preview = dialog
         dialog.show()
@@ -636,7 +673,7 @@ class MainWindow(QMainWindow):
             self.refresh_products()
             self.refresh_dashboard()
         except (TypeError, ValueError) as error:
-            QMessageBox.warning(self, "الكمية مش مظبوطة", "اكتب رقم صحيح للكمية.")
+            self.warning("الكمية مش مظبوطة", "اكتب رقم صحيح للكمية.")
             self.refresh_inventory()
 
     def adjust_stock(self, reason):
@@ -647,7 +684,7 @@ class MainWindow(QMainWindow):
             self.refresh_inventory()
             self.refresh_products()
             self.refresh_dashboard()
-        except ValueError as error: QMessageBox.warning(self, "تعذر تحديث المخزون", str(error))
+        except ValueError as error: self.warning("تعذر تحديث المخزون", str(error))
 
     def categories(self):
         widget, layout = self.page("التصنيفات")
@@ -668,7 +705,7 @@ class MainWindow(QMainWindow):
         row = self.category_table.currentRow()
         if row < 0: return
         try: CategoryService.delete(int(self.category_table.item(row, 0).data(Qt.ItemDataRole.UserRole))); self.refresh_categories(); self.refresh_product_categories()
-        except ValueError as error: QMessageBox.warning(self, "تعذر الحذف", str(error))
+        except ValueError as error: self.warning("تعذر الحذف", str(error))
 
     def refresh_categories(self):
         if not hasattr(self, "category_table"): return
@@ -711,21 +748,21 @@ class MainWindow(QMainWindow):
         return next((sale for sale in SaleService.list_sales() if sale.id == sale_id), None)
 
     def sale_text(self, sale):
-        lines = [f"فاتورة رقم {sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M")]
+        lines = [f"{self.tr('الفاتورة')} #{sale.id}", sale.created_at.strftime("%Y-%m-%d %H:%M")]
         if sale.buyer_name:
-            lines.append(f"المشتري: {sale.buyer_name}")
+            lines.append(f"{self.tr('المشتري')}: {sale.buyer_name}")
         if sale.buyer_phone:
-            lines.append(f"الموبايل: {sale.buyer_phone}")
+            lines.append(f"{self.tr('رقم الموبايل')}: {sale.buyer_phone}")
         lines.append("-" * 28)
         for line in sale.lines:
-            lines.append(f"{line.variant.product.name} | باركود {line.variant.barcode} | {line.qty} | {money(line.line_total)}")
-        lines.append(f"الإجمالي: {money(sale.total)}")
+            lines.append(f"{line.variant.product.name} | {self.tr('الباركود')} {line.variant.barcode} | {line.qty} | {money(line.line_total)}")
+        lines.append(f"{self.tr('الإجمالي')}: {money(sale.total)}")
         return "\n".join(lines)
 
     def view_selected_sale(self):
         sale = self.selected_sale()
         if sale:
-            QMessageBox.information(self, "تفاصيل الفاتورة", self.sale_text(sale))
+            self.information("تفاصيل الفاتورة", self.sale_text(sale))
 
     def reprint_selected_sale(self):
         sale = self.selected_sale()
@@ -736,7 +773,7 @@ class MainWindow(QMainWindow):
         sale = self.selected_sale()
         if not sale:
             return
-        answer = QMessageBox.warning(self, "حذف الفاتورة", "الفاتورة هتتمسح من السجل فقط، ومش هيحصل استرجاع فلوس أو رجوع للمخزون. تكمل؟", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        answer = QMessageBox.warning(self, self.tr("حذف الفاتورة"), self.tr("الفاتورة هتتمسح من السجل فقط، ومش هيحصل استرجاع فلوس أو رجوع للمخزون. تكمل؟"), QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if answer == QMessageBox.StandardButton.Yes:
             SaleService.delete_sale(sale.id)
             self.refresh_sales()
@@ -747,6 +784,13 @@ class MainWindow(QMainWindow):
         values = settings(); self.setting_fields = {}; form = QFormLayout()
         for key, label in (("store_name", "اسم المتجر"), ("store_address", "العنوان"), ("store_phone", "الهاتف"), ("receipt_printer", "طابعة الإيصالات"), ("label_printer", "طابعة الملصقات")):
             field = QLineEdit(values.get(key, "")); self.setting_fields[key] = field; form.addRow(label, field)
+        language = QComboBox()
+        language.addItem("العربية", "ar")
+        language.addItem("English", ENGLISH)
+        language.setCurrentIndex(language.findData(self.language))
+        language.currentIndexChanged.connect(lambda: self.change_language(language.currentData()))
+        self.language_selector = language
+        form.addRow("اللغة", language)
         save = QPushButton("احفظ الإعدادات"); save.clicked.connect(self.save_settings); receipt = QPushButton("اطبع إيصال تجريبي"); receipt.clicked.connect(self.test_receipt); label = QPushButton("اطبع باركود تجريبي"); label.clicked.connect(self.test_label)
         password = QPushButton("غيّر كلمة السر"); password.clicked.connect(self.change_admin_password)
         reset = QPushButton("إرجاع ضبط المصنع")
@@ -755,17 +799,17 @@ class MainWindow(QMainWindow):
         layout.addLayout(form); layout.addWidget(save); layout.addWidget(password); layout.addWidget(receipt); layout.addWidget(label); layout.addSpacing(20); layout.addWidget(reset); layout.addStretch(); return widget
 
     def save_settings(self):
-        save_settings({key: field.text() for key, field in self.setting_fields.items()}); QMessageBox.information(self, "تم الحفظ", "تم حفظ إعدادات المتجر.")
+        save_settings({key: field.text() for key, field in self.setting_fields.items()}); self.information("تم الحفظ", "تم حفظ إعدادات المتجر.")
 
     def change_admin_password(self):
-        old_password, accepted = QInputDialog.getText(self, "تغيير كلمة السر", "كلمة السر القديمة:", QLineEdit.EchoMode.Password)
+        old_password, accepted = self.input_text("تغيير كلمة السر", "كلمة السر القديمة:", QLineEdit.EchoMode.Password)
         if not accepted:
             return
-        new_password, accepted = QInputDialog.getText(self, "تغيير كلمة السر", "كلمة السر الجديدة:", QLineEdit.EchoMode.Password)
+        new_password, accepted = self.input_text("تغيير كلمة السر", "كلمة السر الجديدة:", QLineEdit.EchoMode.Password)
         if accepted and change_password(old_password, new_password):
-            QMessageBox.information(self, "تم التغيير", "كلمة السر اتغيرت.")
+            self.information("تم التغيير", "كلمة السر اتغيرت.")
         else:
-            QMessageBox.warning(self, "تعذر التغيير", "كلمة السر القديمة غلط أو الجديدة قصيرة.")
+            self.warning("تعذر التغيير", "كلمة السر القديمة غلط أو الجديدة قصيرة.")
 
     def guide(self):
         widget, layout = self.page("دليل الاستخدام")
@@ -789,20 +833,20 @@ class MainWindow(QMainWindow):
 
     def test_receipt(self):
         ReceiptPrinter().test()
-        QMessageBox.information(self, "اختبار الإيصال", "لو اسم الطابعة متسجل، المفروض يطلع إيصال تجريبي دلوقتي. لو مش متسجل، الاختبار بيتكتب في نافذة التشغيل.")
+        self.information("اختبار الإيصال", "لو اسم الطابعة متسجل، المفروض يطلع إيصال تجريبي دلوقتي. لو مش متسجل، الاختبار بيتكتب في نافذة التشغيل.")
 
     def test_label(self):
         LabelPrinter().test()
-        QMessageBox.information(self, "اختبار الباركود", "لو اسم طابعة الملصقات متسجل، المفروض يطلع باركود تجريبي دلوقتي. استخدم زر اطبع باركود من شاشة الأصناف لطباعة باركود صنف حقيقي.")
+        self.information("اختبار الباركود", "لو اسم طابعة الملصقات متسجل، المفروض يطلع باركود تجريبي دلوقتي. استخدم زر اطبع باركود من شاشة الأصناف لطباعة باركود صنف حقيقي.")
 
     def factory_reset(self):
-        first = QMessageBox.warning(self, "تحذير خطير", "ده هيمسح كل الأصناف والفواتير والمخزون نهائياً. تكمل؟", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        first = QMessageBox.warning(self, self.tr("تحذير خطير"), self.tr("ده هيمسح كل الأصناف والفواتير والمخزون نهائياً. تكمل؟"), QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if first != QMessageBox.StandardButton.Yes:
             return
-        second = QMessageBox.question(self, "تأكيد نهائي", "آخر تأكيد: إرجاع ضبط المصنع؟", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        second = QMessageBox.question(self, self.tr("تأكيد نهائي"), self.tr("آخر تأكيد: إرجاع ضبط المصنع؟"), QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,)
         if second != QMessageBox.StandardButton.Yes:
             return
         factory_reset()
         initialize_auth()
-        QMessageBox.information(self, "تمت إعادة الضبط", "البرنامج رجع فاضي. كلمة السر رجعت 1234.")
+        self.information("تمت إعادة الضبط", "البرنامج رجع فاضي. كلمة السر رجعت 1234.")
         self.close()
