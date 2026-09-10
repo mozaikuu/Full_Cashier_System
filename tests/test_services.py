@@ -1,6 +1,6 @@
 from decimal import Decimal
 from app.database import Base, engine
-from app.services import CategoryService, ProductService, SaleService
+from app.services import CategoryService, InventoryService, ProductService, ReportService, SaleService
 
 
 def setup_function():
@@ -13,6 +13,68 @@ def test_sale_reduces_stock_and_records_total():
     category_id = CategoryService.list()[0].id
     ProductService.create("Water", "WAT-1", "123", Decimal("10.50"), Decimal("0"), 5, 1, category_id)
     variant = ProductService.search("123")[0]
-    sale = SaleService.checkout({variant.id: 2})
+    sale, change = SaleService.checkout({variant.id: 2}, Decimal("25.00"))
     assert sale.total == Decimal("21.00")
+    assert change == Decimal("4.00")
     assert ProductService.search("123")[0].stock_qty == 3
+
+
+def test_cash_and_stock_rules_are_enforced():
+    CategoryService.save("مشروبات")
+    category_id = CategoryService.list()[0].id
+    ProductService.create("عصير", "J-1", "456", Decimal("12.00"), Decimal("0"), 1, 1, category_id)
+    variant = ProductService.search("456")[0]
+    try:
+        SaleService.checkout({variant.id: 1}, Decimal("1.00"))
+        raise AssertionError("insufficient cash should fail")
+    except ValueError:
+        pass
+    InventoryService.adjust(variant.id, 3, "restock")
+    assert ProductService.search("456")[0].stock_qty == 4
+
+
+def test_product_delete_is_soft_delete():
+    CategoryService.save("بقالة")
+    category_id = CategoryService.list()[0].id
+    ProductService.create("خبز", "B-1", "789", Decimal("8.00"), Decimal("0"), 2, 1, category_id)
+    variant = ProductService.search("789")[0]
+    ProductService.delete(variant.product_id)
+    assert ProductService.search("789") == []
+
+
+def test_identifiers_generate_and_name_search_works():
+    CategoryService.save("حلويات")
+    category_id = CategoryService.list()[0].id
+    variant = ProductService.create("بسكوت", "", "", Decimal("15.00"), Decimal("0"), 0, 1, category_id)
+    assert variant.sku.startswith("PRD-")
+    assert variant.barcode.isdigit()
+    assert len(variant.barcode) == 8
+    assert ProductService.search("بسكوت")[0].barcode == variant.barcode
+    assert ProductService.search(variant.barcode)[0].product.name == "بسكوت"
+
+
+def test_opening_quantity_is_saved():
+    CategoryService.save("منظفات")
+    category_id = CategoryService.list()[0].id
+    variant = ProductService.create("صابون", "", "", Decimal("20.00"), Decimal("0"), 7, 2, category_id)
+    assert ProductService.search(variant.barcode)[0].stock_qty == 7
+
+
+def test_product_edit_updates_quantity():
+    CategoryService.save("أدوات")
+    category_id = CategoryService.list()[0].id
+    variant = ProductService.create("قلم", "", "", Decimal("5.00"), Decimal("0"), 2, 1, category_id)
+    ProductService.update(variant.product_id, "قلم أزرق", variant.sku, variant.barcode, Decimal("6.00"), Decimal("0"), 9, 1, [category_id])
+    updated = ProductService.search(variant.barcode)[0]
+    assert updated.product.name == "قلم أزرق"
+    assert updated.stock_qty == 9
+
+
+def test_low_stock_excludes_inactive_products_and_zero_reorder_levels():
+    CategoryService.save("اختبار")
+    category_id = CategoryService.list()[0].id
+    ProductService.create("متوفر", "", "", Decimal("5.00"), Decimal("0"), 10, 2, category_id)
+    inactive = ProductService.create("قديم", "", "", Decimal("5.00"), Decimal("0"), 0, 5, category_id)
+    ProductService.delete(inactive.product_id)
+    ProductService.create("بدون حد", "", "", Decimal("5.00"), Decimal("0"), 0, 0, category_id)
+    assert ReportService.today()[2] == 0

@@ -47,8 +47,8 @@ class Variant(Base):
     __tablename__ = "product_variants"
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
-    sku: Mapped[str] = mapped_column(String(80), unique=True)
-    barcode: Mapped[str] = mapped_column(String(80), unique=True)
+    sku: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True)
+    barcode: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     cost: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     stock_qty: Mapped[int] = mapped_column(default=0)
