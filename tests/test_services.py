@@ -71,6 +71,14 @@ def test_product_edit_updates_quantity():
     assert updated.stock_qty == 9
 
 
+def test_reorder_level_can_be_changed():
+    CategoryService.save("حدود")
+    category_id = CategoryService.list()[0].id
+    variant = ProductService.create("ممحاة", "", "", Decimal("2.00"), Decimal("0"), 10, 1, category_id)
+    InventoryService.set_reorder_level(variant.id, 6)
+    assert ProductService.search(variant.barcode)[0].reorder_level == 6
+
+
 def test_receipt_delete_does_not_restore_stock():
     CategoryService.save("مخبوزات")
     category_id = CategoryService.list()[0].id

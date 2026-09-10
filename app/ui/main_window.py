@@ -290,7 +290,7 @@ class MainWindow(QMainWindow):
         save = QPushButton("حفظ ومتابعة")
         save.clicked.connect(dialog.accept)
         skip = QPushButton("تخطي")
-        skip.clicked.connect(dialog.accept)
+        skip.clicked.connect(lambda: (name.clear(), phone.clear(), dialog.accept()))
         actions = QHBoxLayout()
         actions.addWidget(save)
         actions.addWidget(skip)
