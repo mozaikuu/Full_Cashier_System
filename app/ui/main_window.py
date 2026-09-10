@@ -149,6 +149,15 @@ class MainWindow(QMainWindow):
         cart_actions.addWidget(clear_cart)
         cart_actions.addStretch()
         layout.addLayout(cart_actions)
+        customer_row = QHBoxLayout()
+        customer_row.addWidget(QLabel("بيانات العميل (اختياري)"))
+        self.buyer_name = QLineEdit()
+        self.buyer_name.setPlaceholderText("اسم العميل")
+        self.buyer_phone = QLineEdit()
+        self.buyer_phone.setPlaceholderText("رقم الهاتف")
+        customer_row.addWidget(self.buyer_name)
+        customer_row.addWidget(self.buyer_phone)
+        layout.addLayout(customer_row)
         footer = QHBoxLayout()
         self.total_label = QLabel("الإجمالي  EGP 0.00")
         self.total_label.setObjectName("title")
@@ -163,14 +172,18 @@ class MainWindow(QMainWindow):
         self.cash.setSuffix(" جنيه")
         self.cash.lineEdit().setPlaceholderText("اكتب المبلغ المدفوع")
         self.cash.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cash.lineEdit().returnPressed.connect(self.complete_sale)
         self.cash.valueChanged.connect(self.update_change)
         self.change_label = QLabel("الباقي 0.00 جنيه")
         pay = QPushButton("بيع نقدي")
+        pay.setDefault(True)
         pay.clicked.connect(self.complete_sale)
         for item in (self.total_label, QLabel("المبلغ المدفوع"), self.cash, self.change_label, pay):
             footer.addWidget(item)
         layout.addLayout(footer)
-        self.setTabOrder(self.scan, self.cash)
+        self.setTabOrder(self.scan, self.buyer_name)
+        self.setTabOrder(self.buyer_name, self.buyer_phone)
+        self.setTabOrder(self.buyer_phone, self.cash)
         self.setTabOrder(self.cash, pay)
         self.cart_items = {}
         self.scan.textChanged.connect(self.update_suggestions)
@@ -250,6 +263,7 @@ class MainWindow(QMainWindow):
         return total
 
     def refresh_cart(self):
+        previous_total = self.cart_total()
         self.cart.blockSignals(True)
         self.cart.setRowCount(0)
         with SessionLocal() as session:
@@ -263,7 +277,10 @@ class MainWindow(QMainWindow):
                 for column, value in enumerate((str(row + 1), variant.product.name, quantity, money(line_total))):
                     self.cart.setItem(row, column, QTableWidgetItem(str(value)))
             self.cart.blockSignals(False)
-        self.total_label.setText(f"الإجمالي  {money(self.cart_total())}")
+        total = self.cart_total()
+        if self.cash.value() == 0 or Decimal(str(self.cash.value())) == previous_total:
+            self.cash.setValue(float(total))
+        self.total_label.setText(f"الإجمالي  {money(total)}")
         self.update_change()
 
     def update_change(self):
@@ -272,43 +289,23 @@ class MainWindow(QMainWindow):
 
     def complete_sale(self):
         try:
-            buyer_name, buyer_phone = self.ask_buyer_details()
-            if buyer_name is None:
-                return
-            sale, change = SaleService.checkout(self.cart_items, Decimal(str(self.cash.value())), buyer_name, buyer_phone)
+            sale, change = SaleService.checkout(
+                self.cart_items,
+                Decimal(str(self.cash.value())),
+                self.buyer_name.text(),
+                self.buyer_phone.text(),
+            )
             ReceiptPrinter().print_sale(sale)
             self.cart_items.clear()
             self.cash.setValue(0)
+            self.buyer_name.clear()
+            self.buyer_phone.clear()
             self.refresh_cart()
             self.refresh_sales()
             self.refresh_dashboard()
+            self.scan.setFocus()
         except ValueError as error:
             QMessageBox.warning(self, "تعذر إتمام البيع", str(error))
-
-    def ask_buyer_details(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("بيانات المشتري (اختياري)")
-        dialog.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-        form = QFormLayout(dialog)
-        name = QLineEdit()
-        name.setPlaceholderText("ممكن تسيبه فاضي")
-        phone = QLineEdit()
-        phone.setPlaceholderText("ممكن تسيبه فاضي")
-        name.returnPressed.connect(lambda: phone.setFocus() if name.text().strip() else dialog.accept())
-        phone.returnPressed.connect(dialog.accept)
-        form.addRow("اسم المشتري", name)
-        form.addRow("رقم الموبايل", phone)
-        save = QPushButton("حفظ ومتابعة")
-        save.clicked.connect(dialog.accept)
-        skip = QPushButton("تخطي")
-        skip.clicked.connect(lambda: (name.clear(), phone.clear(), dialog.accept()))
-        actions = QHBoxLayout()
-        actions.addWidget(save)
-        actions.addWidget(skip)
-        form.addRow(actions)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return None, None
-        return name.text(), phone.text()
 
     def products(self):
         widget, page_layout = self.page("المنتجات")
